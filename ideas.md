@@ -6,3 +6,5 @@
     - Vice versa, gemini can "have sub-agents" if you spawn Claude in cli
 - CC hook for permission request
     - Route permission requests to Opus via a hook — let it scan for attacks and auto-approve the safe ones (see https://code.claude.com/docs/en/hooks#permissionrequest)
+
+
