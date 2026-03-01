@@ -4,90 +4,86 @@ description: Session startup - read handoff.xml, triage items, spawn agents for 
 disable-model-invocation: true
 ---
 
-# Handoff Pickup
-
+<purpose>
 Read the project's `handoff.xml` (always in project root) and orchestrate session startup.
+Primary producer is the `/handoff-update` skill. This skill is the consumer.
+</purpose>
 
-## Handoff Structure
+<categories>
+- `<delegate>` — work Claude can handle autonomously → spawn subagents
+- `<backlog>` — lower priority, often delegatable → spawn when appropriate
+- `<decide>` — needs human choice → surface via AskUserQuestion
+- `<manual>` — human must act externally → display as checklist
+- `<blocked>` — cannot progress → display with reason, ask if situation changed
+- `<exploring>` — open-ended research → offer to spawn Explore agent
+- `<context>` — reference info, not actionable → load silently
 
-The handoff file uses XML category tags with optional inline markers.
+Unknown categories may exist — interpret based on name and act sensibly.
+</categories>
 
-**Common categories:**
-- `<delegate>` - Work that can be handled autonomously → spawn subagents
-- `<backlog>` - Lower priority but often delegatable → spawn subagents when appropriate
-- `<decide>` - Needs human choice → surface via AskUserQuestion
-- `<manual>` - Human must act (external systems, physical actions) → display
-- `<blocked>` - Cannot progress → display with reasons
-- `<exploring>` - Open-ended research, no clear deliverable → offer to continue
-- `<context>` - Reference info, not actionable → load silently
+<inline_markers>
+- `[files]:` — relevant paths with line numbers
+- `[status]:` — what's done, concrete next steps
+- `[left-off]:` — breadcrumb for interrupted work
+- `[decided]:` — choices made + reasoning (don't re-litigate)
+- `[landmine]:` — don't-touch zones, deceptive code, gotchas
+- `[reason]:` — why blocked
+- `[depends]:` — dependency on other task/person
+- `[see]:` — reference URL or doc
 
-**Other categories may exist** - if you encounter unlisted categories, interpret them sensibly based on their name and contents.
+Markers are optional, not mandatory. Other markers may exist — interpret sensibly.
+</inline_markers>
 
-**Common inline markers (examples, not exhaustive):**
-- `[why]:` - motivation, impact
-- `[left-off]:` / `[progress]:` - where we stopped
-- `[constraint]:` - rules, gotchas
-- `[reason]:` - why blocked
-- `[next]:` - suggested next step
-- `[see]:` - reference file/url
-- `[depends]:` - dependency on another item
+<model_selection>
+- **Haiku** — simple: delete files, create files, cleanup, rename
+- **Sonnet** — medium: refactoring, research, multi-file edits
+- **Opus** — complex: new features, hard bugs, architectural changes
+</model_selection>
 
-**Inline markers are optional, not mandatory.** Create new markers as needed - if `[deadline]:` or `[owner]:` or `[risk]:` makes sense for an item, use it.
-
-## Model Selection for Subagents
-
-- **Haiku** - simple tasks: delete files, create files, cleanup, rename
-- **Sonnet** - medium work: refactoring, research, multi-file edits
-- **Opus** - coding: new features, complex bugs, architectural changes
-
-## Workflow
-
+<workflow>
 1. **Read `handoff.xml`** from project root
 
-2. **Parse categories** - identify items by their XML tags
+2. **Parse** — identify items by XML category tags and inline markers
 
 3. **Triage and act:**
 
-   **`<delegate>` and `<backlog>` items:**
+   `<delegate>` and `<backlog>`:
    - Spawn subagents (parallel when independent)
-   - Select model based on complexity (haiku/sonnet/opus)
-   - Pass any inline marker context to the agent
-   - For backlog: most items are delegatable but use judgment
+   - Select model based on complexity
+   - Pass full context: file paths, decisions made, landmines, left-off breadcrumbs
+   - For backlog: use judgment on what's worth starting
 
-   **`<decide>` items:**
+   `<decide>`:
    - Batch into AskUserQuestion (up to 4 questions)
-   - Present options clearly with context
+   - Include `[decided]` context so user sees what was already resolved
 
-   **`<manual>` items:**
-   - Display as a checklist for the human
-   - Note any dependencies
+   `<manual>`:
+   - Display as checklist, note `[depends]` if present
 
-   **`<blocked>` items:**
-   - Display with reason prominently
+   `<blocked>`:
+   - Display with `[reason]` prominently
    - Ask if situation has changed
 
-   **`<exploring>` items:**
+   `<exploring>`:
    - Briefly mention what's being explored
-   - Offer to spawn Explore agent to continue
+   - Offer to spawn Explore agent
 
-   **`<context>` items:**
+   `<context>`:
    - Load silently as background knowledge
-   - Don't display or act
 
-   **Unknown categories:** Interpret based on name and act sensibly.
+   Unknown categories: interpret and act sensibly.
 
-   **Note:** Use AskUserQuestion with ANY category when clarification would help - not just `<decide>` items.
+   Use AskUserQuestion with ANY category when clarification would help.
 
 4. **Verify and wrap up:**
    - If agents were spawned, verify their work before marking done
    - Update `handoff.xml` if items completed or state changed
-   - End with clear picture: what's running, what needs human input, what's blocked
+   - End with clear picture: what's running, what needs input, what's blocked
+</workflow>
 
-## Important
-
-- Keep asking until you fully understand what needs to be done
-- Be concise in communication but don't skip important topics
-- Not all sections required - handoff can have any subset
-- Inline markers are optional - add your own when useful
-- Categories are guidance - create new ones if needed
+<rules>
+- Be concise but don't skip important topics
+- Not all sections required — handoff can have any subset
+- Categories and markers are guidance — new ones may exist
 - Always verify delegated work before marking done
+</rules>
