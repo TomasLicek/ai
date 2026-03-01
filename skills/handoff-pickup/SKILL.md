@@ -1,12 +1,12 @@
 ---
 name: handoff-pickup
-description: Session startup - read handoff.md, triage items, spawn agents for delegatable work, surface decisions needed
+description: Session startup - read handoff.xml, triage items, spawn agents for delegatable work, surface decisions needed
 disable-model-invocation: true
 ---
 
 # Handoff Pickup
 
-Read the project's `handoff.md` (always in project root) and orchestrate session startup.
+Read the project's `handoff.xml` (always in project root) and orchestrate session startup.
 
 ## Handoff Structure
 
@@ -42,7 +42,7 @@ The handoff file uses XML category tags with optional inline markers.
 
 ## Workflow
 
-1. **Read `handoff.md`** from project root
+1. **Read `handoff.xml`** from project root
 
 2. **Parse categories** - identify items by their XML tags
 
@@ -80,7 +80,7 @@ The handoff file uses XML category tags with optional inline markers.
 
 4. **Verify and wrap up:**
    - If agents were spawned, verify their work before marking done
-   - Update `handoff.md` if items completed or state changed
+   - Update `handoff.xml` if items completed or state changed
    - End with clear picture: what's running, what needs human input, what's blocked
 
 ## Important

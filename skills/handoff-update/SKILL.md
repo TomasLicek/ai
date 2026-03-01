@@ -1,91 +1,106 @@
 ---
 name: handoff-update
-description: Update handoff.md after work session - review what changed, clean up done items, add new learnings
+description: Update handoff.xml after work session - review what changed, clean up done items, add new learnings
 disable-model-invocation: true
 argument-hint: [optional guidance]
 ---
 
-# Handoff Update
+<purpose>
+Update the project's `handoff.xml` (always in project root) after a work session.
+Primary consumer is a **fresh Claude session** with zero prior context. Write for cold-start usefulness.
+</purpose>
 
-Review and update the project's `handoff.md` (always in project root) after a work session.
+<rules>
+- Done items get DELETED — handoff = what's OPEN. Not a changelog.
+- Lasting learnings go to CLAUDE.md — handoff is for active work, not knowledge base
+- Be specific, not terse — a fresh session should act without clarifying questions
+- File paths are mandatory — every task item must reference relevant files/functions
+</rules>
 
-## Core Rules
+<handoff_structure>
+The handoff.xml file should follow this structure:
 
-1. **Done items get DELETED, not strikethrough** - handoff = what's OPEN
-2. **Keep it lean** - move lasting learnings to CLAUDE.md, not handoff
-3. **Handoff is not a changelog** - no history, just current state
+```markdown
+> TL;DR: [2-3 sentences. What's the project doing right now? What's hot?]
 
-## Typical Workflow
+<category_name>
+- **Task title** — what and why, not just what
+  [files]: `path/to/file.ts:42`, `other/file.py`
+  [status]: what's done, what's left (concrete steps)
+  [decided]: choices made and why — prevent re-litigation
+  [landmine]: gotchas, things that look wrong but aren't, don't-touch zones
+</category_name>
 
-Usually you won't receive explicit commands. The flow is:
+<context>
+- stable facts about the project setup, structure, tooling
+</context>
+```
 
+<example_bad>
+`- Fix pagination bug`
+</example_bad>
+
+<example_good>
+```
+- **Pagination returns wrong total on filtered queries** — API returns unfiltered total_count
+  [files]: `src/api/paginate.ts:45`, `src/hooks/useList.ts`
+  [status]: root cause identified, need to add filtered count param to API call
+  [decided]: offset correction over cursor-based (API doesn't support cursors)
+  [landmine]: `paginate.ts` has a legacy code path (L80-95) that 3 views depend on — don't refactor
+```
+</example_good>
+
+Not every marker is needed every time. Use what's relevant. `[files]` is always relevant.
+</handoff_structure>
+
+<workflow>
 1. We do work, discuss, fix things
 2. User calls `/handoff-update` (maybe with freeform guidance in $ARGUMENTS)
-3. You review:
-   - What work was completed this session?
-   - What items in handoff.md are now done? → DELETE them
-   - What new items emerged? → ADD them to appropriate category
-   - What's now blocked that wasn't before? → MOVE or annotate
-   - Did we learn something lasting? → Update CLAUDE.md (see below)
+3. Discover what changed: check git log/diff, review conversation history, read current handoff.xml
+4. Review:
+   - What work was completed? → DELETE those items
+   - What new items emerged? → ADD with full context (files, status, decisions)
+   - What's blocked? → annotate with `[reason]:`
+   - Lasting learnings? → update CLAUDE.md (project), ask first for global `~/.claude/CLAUDE.md`
+5. Update the TL;DR to reflect current state
+6. Show brief summary of changes
+</workflow>
 
-4. Make the updates
-5. Show brief summary of changes
+<doc_updates>
+When we learn something lasting, **update CLAUDE.md directly** (project-level). Ask first for global.
+Same for project docs — if we fixed something that docs cover, update them too. Be proactive.
+Don't suggest "maybe we could update docs" — do it or ask to do it.
+</doc_updates>
 
-## CLAUDE.md Updates - Be proactive
-
-When we fix something or learn something important, **proactively update CLAUDE.md**:
-
-- How to use a tool correctly
-- What to avoid (discovered a bug, bad pattern, etc.)
-- Better way of doing things we discovered
-- API quirks or limitations learned
-
-**For project CLAUDE.md:** Just do it, then inform the user what you added and why.
-
-**For global `~/.claude/CLAUDE.md`:** Ask first before modifying.
-
-Don't suggest "maybe we could update CLAUDE.md" - either do it or ask to do it.
-
-## Documentation updates
-Same as CLAUDE.md - be proactive and update it.
-
-## Optional Arguments
-
+<arguments>
 If the user provides $ARGUMENTS, treat as freeform guidance:
 - "mark the pagination fix as done"
 - "add a note about the API rate limit we discovered"
-- "move caching decision to blocked, waiting on infra team"
 
 Without arguments, review the session yourself and figure out what changed.
+</arguments>
 
-## Common Categories
+<categories>
+- `<delegate>` — Claude can handle autonomously
+- `<backlog>` — lower priority
+- `<decide>` — needs human choice
+- `<manual>` — human must act externally
+- `<blocked>` — cannot progress
+- `<exploring>` — open-ended research
+- `<context>` — reference info (not tasks)
 
-- `<delegate>` - Claude can handle autonomously
-- `<backlog>` - Lower priority, often delegatable
-- `<decide>` - Needs human choice
-- `<manual>` - Human must act externally
-- `<blocked>` - Cannot progress
-- `<exploring>` - Open-ended research
-- `<context>` - Reference info (not tasks)
+Create new categories freely — `<urgent>`, `<waiting-on>`, `<ideas>`, whatever fits.
+</categories>
 
-**Create new categories as needed** - `<urgent>`, `<waiting-on>`, `<ideas>`, whatever fits.
+<inline_markers>
+- `[files]:` — relevant paths with line numbers **(always include)**
+- `[status]:` — what's done, concrete next steps
+- `[left-off]:` — breadcrumb for interrupted work (what line, what function, mid-what)
+- `[decided]:` — choices made + reasoning
+- `[landmine]:` — don't-touch zones, deceptive code, gotchas
+- `[reason]:` — why blocked
+- `[depends]:` — dependency on other task/person
+- `[see]:` — reference URL or doc
 
-## Common Inline Markers
-
-Examples (not exhaustive):
-- `[why]:` - motivation, impact
-- `[left-off]:` / `[progress]:` - breadcrumb
-- `[constraint]:` - rules, gotchas
-- `[reason]:` - why blocked
-- `[next]:` - suggested next step
-- `[see]:` - reference file/url
-- `[depends]:` - dependency
-
-**Create new markers as needed** - `[owner]:`, `[deadline]:`, whatever fits the context.
-
-## Important
-
-- Be concise in communication but don't skip important topics
-- Never add timestamps or "completed on" markers
-- Preserve formatting in `<context>` sections
-- Categories and markers are guidance - create new ones freely
+Create new markers freely. The point is structured context, not rigid format.
+</inline_markers>

@@ -36,7 +36,7 @@ Kaizen: small improvements, compounded. Reflect on what happened, extract lesson
 3. **Persist the learnings**
    - Update `MEMORY.md` or topic-specific memory files with durable insights
    - Propose CLAUDE.md changes if project conventions need updating
-   - Update `handoff.md` if there's open work for next session
+   - Update `handoff.xml` if there's open work for next session
    - Suggest skill updates if a skill was clunky or missing
    - **Don't just report findings — actually write them down where they'll be found**
 

@@ -1,0 +1,9 @@
+> TL;DR: Meta-project for Claude skills, agents, and workflow tooling. Recently overhauled handoff-update skill for richer machine-to-machine context passing. Nothing actively in-flight.
+
+<context>
+## Skill & agent inventory
+- 18 skills in `/Users/tom/code/ai/skills/`
+- 1 agent (breaker) in `/Users/tom/code/ai/agents/`
+- Both symlinked from `~/.claude/`
+- `claude-skills` script at `~/.local/bin/` — fzf picker, opens in nvim. Alias: `skills`
+</context>

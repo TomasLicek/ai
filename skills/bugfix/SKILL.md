@@ -70,7 +70,7 @@ Be brief.
 - Address any FAIL/CONCERN
 - List what was fixed
 - Note manual testing needed
-- Update handoff.md if relevant
+- Update handoff.xml if relevant
 
 ## Rules
 
