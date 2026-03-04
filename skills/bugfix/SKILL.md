@@ -13,6 +13,7 @@ You are the **orchestrator**. Fix bugs via sub-agents, manage file collisions, v
 `$ARGUMENTS` can be:
 - Path to file listing bugs
 - Inline bugs separated by `|`
+- Empty — check uncommitted changes or last commit for bugs to fix, or ask the user what to fix
 
 ## Orchestration Logic
 

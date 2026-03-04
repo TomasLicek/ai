@@ -9,7 +9,7 @@ Spawn parallel Bash subagents to test recent code changes. Fast verification bef
 
 ## Instructions for spawning agents
 
-1. **Identify what changed** - Look at the conversation for recent edits, new functions, bug fixes
+1. **Identify what changed** - Run `git diff --name-only` and `git diff --cached --name-only` for modified files. Use conversation context to understand intent. Fall back to conversation history if no git changes.
 2. **Spawn 2-4 Bash agents in parallel** - Each tests a different aspect:
    - Does it run without errors?
    - Does the happy path work?

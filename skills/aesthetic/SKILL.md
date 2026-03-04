@@ -52,8 +52,9 @@ Don't just pick randomly. Match font to context:
 1. Read the request: $ARGUMENTS
 2. Before coding, state your aesthetic choices: font, palette, theme direction, one animation idea
 3. Build it — single self-contained HTML file with inline CSS/JS unless the project requires otherwise
-4. Use Tailwind from CDN if vanilla HTML. Respect project's existing stack if there is one.
-5. Open in browser for review if applicable
+4. Save variants to the `variants/` folder in the project root (create if needed). Use descriptive filenames (e.g., `variants/async_jobs_mission_control.html`)
+5. Use Tailwind from CDN if vanilla HTML. Respect project's existing stack if there is one.
+6. Open in browser for review if applicable
 
 ## What "good" looks like
 

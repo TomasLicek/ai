@@ -1,8 +1,8 @@
 ---
-name: explain
+name: explainCode
 disable-model-invocation: true
 argument-hint: <file or code to explain>
-description: Explain code for someone learning - no jargon, honest about complexity
+description: Explain code for someone learning — teach how it works conceptually. No jargon, honest about complexity. Logic, patterns, design decisions.
 ---
 
 # Explain Code

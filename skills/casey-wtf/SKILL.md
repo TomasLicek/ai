@@ -1,8 +1,8 @@
 ---
-name: wtf
+name: casey-wtf
 disable-model-invocation: true
 argument-hint: <file or code to trace>
-description: Step-by-step execution trace - what is this actually doing
+description: "WTF is this code doing" — step-by-step execution trace, no jargon, painfully literal. Use when someone is confused by code, wants to understand unfamiliar logic, or needs magic/metaprogramming exposed.
 ---
 
 # WTF Is This Code Doing

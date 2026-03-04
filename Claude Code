@@ -2,9 +2,35 @@
 
 **CC 101**
 - use plan mode
-- handoff.md and compact like crazy
+- handoff.xml and compact like crazy
 - commit regularly
 - use subagents
 - **btw**: start with the "btw" to not interrupt the agent.
 - /agents: review and create new proactively
 - /
+
+
+# shell aliases:
+
+c="claude"
+cc="claude --chrome"
+cs="claude --dangerously-skip-permissions"
+ccs="claude --chrome --dangerously-skip-permissions"
+
+# also in shell:
+IS_SANDBOX=1
+
+
+ESC ESC
+
+
+
+## Hooks security
+
+One of the recommendations is to use absolute paths (rather than relative paths) for scripts. This helps mitigate path interception and binary planting attacks.
+
+This recommendation also makes it much more challenging to share settings.json files. The reason is simple: the absolute path to any of the hook scripts on your machine will likely be different from the absolute path on my machine, simply because we will probably place the project in separate directories. 
+
+To solve this problem, our project has a settings.example.json file. Inside of it, the script references contain a $PWD placeholder. When we run npm run setup, some dependencies are installed, but it also runs an init-claude.js script placed inside the scripts directory. This script will replace those $PWD placeholder with the absolute path to the project on your machine, copy the settings.example.json file, and rename it to settings.local.json.
+
+This script allows us to share settings.json files but still use the recommended absolute paths!

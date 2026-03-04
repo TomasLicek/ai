@@ -60,7 +60,7 @@ Don't pick a winner. The point is giving Tom options to react to, not pre-digest
 
 <gui_rules>
 When the task is visual/frontend:
-- Read the `aesthetic` skill's SKILL.md and extract the frontend_aesthetics block and font reference table. Inject both into your approach before building.
+- Find the `aesthetic` skill (search for `aesthetic/SKILL.md` in the skills directory) and extract the frontend_aesthetics block and font reference table. Inject both into your approach before building.
 - Each variant MUST have a different aesthetic — different font pairing, different palette, different vibe. Don't converge on "neutral."
 - State your aesthetic choices before building: font pairing, dominant color(s), one animation idea
 - Self-contained HTML files unless project stack dictates otherwise
