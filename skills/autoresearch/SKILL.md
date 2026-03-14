@@ -14,13 +14,15 @@ Autonomous experiment loop: try ideas, measure, keep what works, discard what do
    - If missing: tell the user to run `/autoresearch-init` first. Stop.
    - If present: read it along with `autoresearch.sh`, `autoresearch.ideas.md` (if exists), and `results.jsonl` (if exists).
 
-2. **Understand the state.** Check `git log --oneline -20` and `results.jsonl` to see where things left off. How many runs? What was tried? What's the current best? What branches exist under `autoresearch/exp/*`?
+2. **Identify the trunk branch.** Read the `## Branch` section of `autoresearch.md` — it contains the trunk branch name (e.g., `autoresearch/sharpe-2026-03-14`). Switch to it: `git checkout <trunk>`.
 
-3. **Read the source files in scope.** Every file listed in autoresearch.md's "Files in Scope." Read them fully — deep understanding beats random mutations.
+3. **Understand the state.** Check `git log --oneline -20` and `results.jsonl` to see where things left off. How many runs? What was tried? What's the current best? What branches exist under `autoresearch/exp/*`?
 
-4. **If `$ARGUMENTS` contains a specific idea**, try that first. Otherwise, check `autoresearch.ideas.md` for the highest-priority untried idea. If nothing there either, form your own hypothesis from the results history and source code.
+4. **Read the source files in scope.** Every file listed in autoresearch.md's "Files in Scope." Read them fully — deep understanding beats random mutations.
 
-5. **Start looping immediately.** Do not ask permission.
+5. **If `$ARGUMENTS` contains a specific idea**, try that first. Otherwise, check `autoresearch.ideas.md` for the highest-priority untried idea. If nothing there either, form your own hypothesis from the results history and source code.
+
+6. **Start looping immediately.** Do not ask permission.
 
 ## The Loop
 
@@ -31,35 +33,37 @@ REPEAT:
   1. Think: review results.jsonl + autoresearch.md + source → form hypothesis
      - Look at discarded experiments too. Can two near-misses combine?
        Browse discarded branches: git branch --list "autoresearch/exp/*"
-       View a discard's diff: git diff main...autoresearch/exp/NNN-name
-  2. Create experiment branch off clean trunk:
+       View a discard's diff: git diff <trunk>...autoresearch/exp/NNN-name
+  2. Ensure you're on trunk, then create experiment branch:
+       git checkout <trunk>
        git checkout -b autoresearch/exp/NNN-short-name
   3. Edit: modify files in scope only
   4. Commit: git add <in-scope files only> && git commit -m "autoresearch: <description>"
-  5. Run: ./autoresearch.sh (script handles its own logging internally)
-     Read results: grep "^METRIC" from stdout or run.log
-     On crash: tail -50 run.log for diagnosis
+  5. Run: ./autoresearch.sh
+     The script logs verbose output to run.log and emits METRIC lines to stdout.
+     Capture stdout to read metrics. On crash: tail -50 run.log for diagnosis.
   6. Decide: apply the decision rules from autoresearch.md
      - KEEP: merge to clean trunk
-         git checkout autoresearch/<session>
+         git checkout <trunk>
          git merge autoresearch/exp/NNN-short-name
      - DISCARD: branch stays (code preserved for future combination)
-         git checkout autoresearch/<session>
+         git checkout <trunk>
      - CRASH: same as discard
-  7. Append to results.jsonl
-  8. Every ~5 runs: update autoresearch.md "What's Been Tried" and commit it
-  9. Periodically: update autoresearch.ideas.md — remove tried ideas, add new ones
+  7. Append to results.jsonl (you're on trunk now)
+  8. Every ~5 runs (on trunk): update autoresearch.md "What's Been Tried" and commit
+  9. Periodically (on trunk): update autoresearch.ideas.md — remove tried ideas, add new ones
 ```
+
+Where `<trunk>` is the branch name from the `## Branch` section of `autoresearch.md`.
 
 ### Branch Structure
 
 ```
-autoresearch/<session>          ← clean trunk, only keeps (created by /autoresearch-init)
-autoresearch/exp/001-baseline   ← merged to trunk
-autoresearch/exp/002-increase-lr ← merged to trunk
-autoresearch/exp/003-rsi-filter  ← abandoned (discard — code preserved)
-autoresearch/exp/004-ema-cross   ← abandoned (discard — code preserved)
-autoresearch/exp/005-momentum    ← merged to trunk
+autoresearch/sharpe-2026-03-14    ← clean trunk, only keeps (created by /autoresearch-init)
+autoresearch/exp/001-increase-lr  ← merged to trunk
+autoresearch/exp/002-rsi-filter   ← abandoned (discard — code preserved)
+autoresearch/exp/003-ema-cross    ← abandoned (discard — code preserved)
+autoresearch/exp/004-momentum     ← merged to trunk
 ```
 
 The clean trunk always has the best known code. Experiment branches are always created from the trunk tip, so merges are fast-forwards. Discarded branches stay — they're the raw material for combining ideas later.
@@ -74,7 +78,7 @@ git branch --list "autoresearch/exp/*"
 git log --oneline autoresearch/exp/003-rsi-filter
 
 # See exactly what a discard changed
-git diff autoresearch/<session>...autoresearch/exp/003-rsi-filter
+git diff <trunk>...autoresearch/exp/003-rsi-filter
 
 # Try combining: create new experiment, cherry-pick from discards
 git checkout -b autoresearch/exp/NNN-combine-rsi-momentum
@@ -87,9 +91,9 @@ git cherry-pick <commit-from-003>  # may need conflict resolution
 Append one JSON line per run to `results.jsonl`:
 
 ```json
-{"run": 1, "commit": "a1b2c3d", "branch": "autoresearch/exp/001-baseline", "metrics": {"val_bpb": 0.997, "memory_gb": 44.0}, "status": "keep", "description": "baseline"}
-{"run": 2, "commit": "b2c3d4e", "branch": "autoresearch/exp/002-increase-lr", "metrics": {"val_bpb": 0.993, "memory_gb": 44.2}, "status": "keep", "description": "increase LR to 0.04"}
-{"run": 3, "commit": "c3d4e5f", "branch": "autoresearch/exp/003-rsi-filter", "metrics": {"val_bpb": 1.005, "memory_gb": 44.0}, "status": "discard", "description": "RSI(14) filter: buy <30, sell >70. Too few signals, only 12 trades in 10yr"}
+{"run": 1, "commit": "a1b2c3d", "branch": "autoresearch/sharpe-2026-03-14", "metrics": {"val_bpb": 0.997, "memory_gb": 44.0}, "status": "keep", "description": "baseline"}
+{"run": 2, "commit": "b2c3d4e", "branch": "autoresearch/exp/001-increase-lr", "metrics": {"val_bpb": 0.993, "memory_gb": 44.2}, "status": "keep", "description": "increase LR to 0.04"}
+{"run": 3, "commit": "c3d4e5f", "branch": "autoresearch/exp/002-rsi-filter", "metrics": {"val_bpb": 1.005, "memory_gb": 44.0}, "status": "discard", "description": "RSI(14) filter: buy <30, sell >70. Too few signals, only 12 trades in 10yr"}
 ```
 
 Write meaningful descriptions — especially for discards. A future agent (or you after a context reset) needs to understand what was tried AND why it failed to decide whether to combine or revisit it.
@@ -109,7 +113,7 @@ Follow the rules defined in `autoresearch.md`. The typical structure is:
 
 Your context window is finite and you're running potentially hundreds of iterations. Protect it:
 
-- **Don't flood your context with benchmark output.** The benchmark script (`autoresearch.sh`) handles its own logging to `run.log`. Read results selectively: `grep "^METRIC" run.log` for metrics, `tail -50 run.log` for crash diagnosis.
+- **Don't flood your context with benchmark output.** The benchmark script (`autoresearch.sh`) handles its own logging to `run.log` and emits only METRIC lines to stdout. On crash, use `tail -50 run.log` for diagnosis.
 - **Keep commit messages short.** `autoresearch: <10 words max>`.
 - **Don't re-read source files every iteration.** Re-read when you're stuck or trying something structurally different, not on every loop.
 - **If context is getting full:** stop the loop gracefully. Update `autoresearch.md` with current state (what's been tried, current best, promising next ideas), commit it, then tell the user to run `/autoresearch` again to resume in a fresh context.

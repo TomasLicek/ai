@@ -81,6 +81,9 @@ The heart of the session. A fresh agent with zero context should be able to read
 ```markdown
 # Autoresearch: <goal>
 
+## Branch
+Trunk: `autoresearch/<goal>-<date>`
+
 ## Objective
 <Specific description of what we're optimizing and the workload.
 Include enough context that a fresh agent understands the domain.>
@@ -181,8 +184,10 @@ The main session branch is the "clean trunk" — only successful experiments get
 
 ```bash
 git checkout -b autoresearch/<goal>-<date>
-git add autoresearch.md autoresearch.sh autoresearch.ideas.md
 chmod +x autoresearch.sh
+echo "results.jsonl" >> .gitignore
+echo "run.log" >> .gitignore
+git add autoresearch.md autoresearch.sh autoresearch.ideas.md .gitignore
 git commit -m "autoresearch: init session for <goal>"
 ```
 
@@ -191,7 +196,7 @@ git commit -m "autoresearch: init session for <goal>"
 Execute `./autoresearch.sh` and record the baseline metrics. This is run #1 — the starting point everything is compared against. Log it to `results.jsonl`:
 
 ```json
-{"run": 1, "commit": "<hash>", "metrics": {"primary_name": value, ...}, "status": "keep", "description": "baseline"}
+{"run": 1, "commit": "<hash>", "branch": "autoresearch/<goal>-<date>", "metrics": {"primary_name": value, ...}, "status": "keep", "description": "baseline"}
 ```
 
 **IMPORTANT: NEVER commit or stage `results.jsonl`.** It is a working-tree log file only. Untracked files persist across branch switches, so it's always available regardless of which experiment branch you're on.
