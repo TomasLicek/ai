@@ -7,7 +7,7 @@ argument-hint: [optional guidance]
 
 <purpose>
 Update the project's `handoff.xml` (always in project root) after a work session.
-Primary consumer is a **fresh Claude session** with zero prior context. Write for cold-start usefulness.
+Primary consumer is a **fresh session** with zero prior context. Write for cold-start usefulness.
 </purpose>
 
 <rules>
@@ -15,13 +15,14 @@ Primary consumer is a **fresh Claude session** with zero prior context. Write fo
 - Lasting learnings go to CLAUDE.md — handoff is for active work, not knowledge base
 - Be specific, not terse — a fresh session should act without clarifying questions
 - File paths are mandatory — every task item must reference relevant files/functions
+- Be specific and detailed. Describe and hand over as much as possible so the next session does not have to rediscover what you already found out.
 </rules>
 
 <handoff_structure>
 The handoff.xml file should follow this structure:
 
 ```markdown
-> TL;DR: [2-3 sentences. What's the project doing right now? What's hot?]
+> TL;DR: [3-5 sentences. What's the project doing right now? What's hot?]
 
 <category_name>
 - **Task title** — what and why, not just what
@@ -53,10 +54,20 @@ The handoff.xml file should follow this structure:
 Not every marker is needed every time. Use what's relevant. `[files]` is always relevant.
 </handoff_structure>
 
+<git_context>
+First check if the project is a git repo: !`git rev-parse --is-inside-work-tree 2>/dev/null`
+
+If yes (output "true"):
+- Recent commits: !`git log --oneline -10 2>/dev/null || echo "no commits yet"`
+- Changed files: !`git diff --stat HEAD~5..HEAD 2>/dev/null || git diff --stat 2>/dev/null || echo "no diff available"`
+
+If not a git repo: skip git context entirely and rely on conversation history + reading files.
+</git_context>
+
 <workflow>
 1. We do work, discuss, fix things
 2. User calls `/handoff-update` (maybe with freeform guidance in $ARGUMENTS)
-3. Discover what changed: check git log/diff, review conversation history, read current handoff.xml
+3. Discover what changed: use the git context above, review conversation history, read current handoff.xml
 4. Review:
    - What work was completed? → DELETE those items
    - What new items emerged? → ADD with full context (files, status, decisions)

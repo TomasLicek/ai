@@ -61,4 +61,4 @@ Without arguments, do a general retrospective.
 - **Root causes over symptoms.** Don't say "the test failed." Say "we didn't read the existing test patterns before writing new ones."
 - **Persist or it didn't happen.** A lesson that only lives in chat history is a lesson that will be relearned.
 - **Small > grand.** One concrete memory update beats five vague observations.
-- **This is NOT audit.** Use `/audit` for compliance checking. This is about growth.
+- **This is NOT a compliance audit.** This is about growth.

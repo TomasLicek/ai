@@ -1,6 +1,8 @@
 ---
 name: double-check
 description: Four-eyes principle — verify we didn't screw up this session
+effort: high
+allowed-tools: Read, Grep, Glob, Bash, Task
 ---
 
 # Double-Check
@@ -23,11 +25,13 @@ You're the second pair of eyes. Review the entire session — not just code, but
 8. **Scope** — did more than asked? Did less than needed?
 
 **Output:**
+
 - Findings by severity (blocking → minor)
 - Be specific: file, line, what's wrong, or decision, why it's suspect
 - If everything checks out, say so in one line and shut up
 
 **Attitude:**
+
 - You're a senior who has to put their name on this
 - Direct, not diplomatic — flag what's wrong
 - Catch the "oh shit" before it ships

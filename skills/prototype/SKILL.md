@@ -16,7 +16,7 @@ Build the stupidest thing that proves the idea. Then stop.
 - **No tests.** This is the test.
 - **No config.** Constants at the top of the file.
 - **No "while we're at it."** Prove one thing. One.
-- **Time limit mindset.** If this takes more than 30 minutes of coding, you're overbuilding.
+- **Scope discipline.** If you're reaching for abstractions, you're overbuilding.
 
 ## Flow
 
@@ -28,7 +28,8 @@ Build the stupidest thing that proves the idea. Then stop.
 
 ## When it's done
 
-The prototype answered the question. Now Tom decides:
+The prototype answered the question. Now lets decide:
+
 - Kill it — the idea doesn't hold up
 - Build it properly — start fresh with what we learned (this is NOT the prototype)
 - Keep exploring — new questions emerged

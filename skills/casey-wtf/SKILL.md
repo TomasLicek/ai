@@ -1,6 +1,7 @@
 ---
 name: casey-wtf
-disable-model-invocation: true
+disable-model-invocation: false
+allowed-tools: Read, Grep, Glob
 argument-hint: <file or code to trace>
 description: "WTF is this code doing" — step-by-step execution trace, no jargon, painfully literal. Use when someone is confused by code, wants to understand unfamiliar logic, or needs magic/metaprogramming exposed.
 ---

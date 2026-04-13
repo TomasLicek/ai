@@ -1,6 +1,8 @@
 ---
 name: casey-newcomer
 disable-model-invocation: true
+effort: high
+allowed-tools: Read, Grep, Glob, Task
 argument-hint: <file or code to review>
 description: "I just joined and this codebase is bullshit" — senior newcomer code review focused on complexity, unnecessary abstraction, and cargo cult patterns. Use when someone asks for a fresh-eyes review, architecture sanity check, or wants to know if a codebase is approachable.
 ---

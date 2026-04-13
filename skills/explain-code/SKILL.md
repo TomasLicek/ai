@@ -1,6 +1,7 @@
 ---
-name: explainCode
+name: explain-code
 disable-model-invocation: true
+allowed-tools: Read, Grep, Glob
 argument-hint: <file or code to explain>
 description: Explain code for someone learning — teach how it works conceptually. No jargon, honest about complexity. Logic, patterns, design decisions.
 ---

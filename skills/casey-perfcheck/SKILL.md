@@ -1,6 +1,8 @@
 ---
 name: casey-perfcheck
 disable-model-invocation: true
+effort: high
+allowed-tools: Read, Grep, Glob, Bash
 argument-hint: <code, function, or file to check>
 description: Back-of-envelope performance check — is this code unreasonably slow? Use when someone asks "is this fast enough", "why is this slow", or wants a quick perf sanity check on a function or loop.
 ---

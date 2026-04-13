@@ -27,6 +27,7 @@ Autonomous experiment loop: try ideas, measure, keep what works, discard what do
 ## The Loop
 
 **LOOP FOREVER.** Never ask "should I continue?" — the user expects autonomous work.
+**NEVER STOP ON YOUR OWN. The user may be sleeping. Keep going until interrupted.**
 
 ```
 REPEAT:

@@ -12,12 +12,16 @@ Create a git commit for staged/unstaged changes.
 
 $ARGUMENTS
 
+## Current git state
+
+- Status: !`git status`
+- Staged diff: !`git diff --staged`
+- Unstaged diff: !`git diff`
+- Recent commits: !`git log --oneline -5`
+
 ## Steps
 
-1. Run in parallel:
-   - `git status` (no -uall flag)
-   - `git diff` + `git diff --staged`
-   - `git log --oneline -5` (match commit style)
+1. Analyze the git state above — no need to re-run those commands
 
 2. Analyze changes, draft commit message:
    - Use the context above to understand what was done
