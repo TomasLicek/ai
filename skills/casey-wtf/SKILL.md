@@ -1,5 +1,6 @@
 ---
 name: casey-wtf
+effort: xhigh
 disable-model-invocation: false
 allowed-tools: Read, Grep, Glob
 argument-hint: <file or code to trace>

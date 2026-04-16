@@ -1,5 +1,6 @@
 ---
 name: sketch
+effort: xhigh
 disable-model-invocation: true
 description: Generate N divergent variants of something — layouts, architectures, approaches — then you pick and combine
 argument-hint: <what to generate variants of>

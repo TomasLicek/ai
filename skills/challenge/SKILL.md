@@ -1,5 +1,6 @@
 ---
 name: challenge
+effort: xhigh
 disable-model-invocation: false
 argument-hint: <position or idea to challenge>
 description: Steel-man the opposition, stress-test the idea. Use when someone says "challenge this", "play devil's advocate", "poke holes", or when an idea needs pushback before committing to it.

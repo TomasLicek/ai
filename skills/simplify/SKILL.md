@@ -1,5 +1,6 @@
 ---
 name: simplify
+effort: xhigh
 disable-model-invocation: true
 argument-hint: <file or code to simplify>
 description: Find what can be deleted, inlined, or made boring

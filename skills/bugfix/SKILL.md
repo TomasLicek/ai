@@ -1,5 +1,6 @@
 ---
 name: bugfix
+effort: xhigh
 description: Spawn sub-agents to fix bugs in parallel, then verify fixes
 argument-hint: <bug list or "audit">
 ---

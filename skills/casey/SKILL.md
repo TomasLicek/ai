@@ -1,7 +1,7 @@
 ---
 name: casey
 disable-model-invocation: true
-effort: high
+effort: xhigh
 allowed-tools: Read, Grep, Glob
 argument-hint: <file or code to review>
 description: Casey Muratori-style code review — performance, data layout, abstraction tax, unnecessary complexity. Ruthless, no bullshit.

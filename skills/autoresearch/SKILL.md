@@ -1,5 +1,6 @@
 ---
 name: autoresearch
+effort: xhigh
 description: Resume and run an autonomous experiment loop. Reads autoresearch.md for context, then loops forever — try ideas, keep what works, discard what doesn't. Use when asked to "run autoresearch", "start experiments", "continue autoresearch", or "optimize in a loop". Requires autoresearch.md to exist (run /autoresearch-init first if it doesn't).
 argument-hint: <optional: specific idea or direction to try first>
 ---

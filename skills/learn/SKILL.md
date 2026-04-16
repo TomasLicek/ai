@@ -1,6 +1,7 @@
 ---
 name: learn
-description: What have you learned from this session? Apply Kaizen principles to improve the project, yourself, the user, or the user experience.
+effort: xhigh
+description: Run a session retrospective — extract lessons from what happened and persist them where they'll be found next time (CLAUDE.md, MEMORY.md, handoff.xml, skills). Invoke proactively after painful debug sessions, unexpected breakthroughs, end of significant work, or when a pattern recurs across sessions. Apply Kaizen — small improvements, compounded.
 disable-model-invocation: false
 argument-hint: [optional focus area]
 ---

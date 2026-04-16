@@ -1,7 +1,7 @@
 ---
 name: root-cause
 disable-model-invocation: true
-effort: high
+effort: xhigh
 allowed-tools: Read, Grep, Glob, Bash
 argument-hint: <problem or symptom to investigate>
 description: Five whys until bedrock - symptoms are not causes

@@ -1,7 +1,7 @@
 ---
 name: debug-hypothesis
 description: Use when debugging any non-trivial bug — wrong output, crash, flaky test, performance regression, or "it works locally but not in CI." Forces a scientific-method loop (Observe → Hypothesize → Experiment → Conclude) so the agent stops guessing and starts reasoning. Prevents AI debugging failure mode — bulldozing through a wrong idea instead of falsifying it.
-effort: high
+effort: xhigh
 ---
 
 # Hypothesis-Driven Debugging

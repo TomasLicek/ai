@@ -1,5 +1,6 @@
 ---
 name: handoff-pickup
+effort: xhigh
 description: Session startup - read handoff.xml, triage items, spawn agents for delegatable work, surface decisions needed
 disable-model-invocation: true
 ---

@@ -1,5 +1,6 @@
 ---
 name: prototype
+effort: xhigh
 disable-model-invocation: true
 argument-hint: <idea to prototype>
 description: Build the dumbest version that works, then stop

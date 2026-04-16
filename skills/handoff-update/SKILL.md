@@ -1,5 +1,6 @@
 ---
 name: handoff-update
+effort: xhigh
 description: Update handoff.xml after work session - review what changed, clean up done items, add new learnings
 disable-model-invocation: true
 argument-hint: [optional guidance]

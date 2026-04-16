@@ -1,5 +1,6 @@
 ---
 name: autoresearch-init
+effort: xhigh
 description: Set up an autonomous experiment session — discuss optimization goals, define metrics and decision rules, write session files (autoresearch.md, autoresearch.sh, autoresearch.ideas.md), run baseline. Use when asked to "set up autoresearch", "init autoresearch", "prepare an optimization loop", or before running /autoresearch for the first time on a new target. Also use when the user wants to change what autoresearch is optimizing.
 argument-hint: <goal or topic to optimize>
 ---

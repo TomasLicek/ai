@@ -1,5 +1,6 @@
 ---
 name: aesthetic
+effort: xhigh
 disable-model-invocation: true
 argument-hint: <what to build>
 description: Generate distinctive, polished frontends — not AI slop

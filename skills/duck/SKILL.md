@@ -1,5 +1,6 @@
 ---
 name: duck
+effort: xhigh
 disable-model-invocation: true
 argument-hint: [what's on your mind]
 description: Rubber duck - sit with the problem, don't rush to solve

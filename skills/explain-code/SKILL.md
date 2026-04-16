@@ -1,5 +1,6 @@
 ---
 name: explain-code
+effort: xhigh
 disable-model-invocation: true
 allowed-tools: Read, Grep, Glob
 argument-hint: <file or code to explain>
