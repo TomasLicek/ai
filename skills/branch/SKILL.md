@@ -2,7 +2,7 @@
 name: branch
 description: Create a new git branch off current branch with standardized naming
 model: haiku
-argument-hint: [JIRA-123] description of branch
+argument-hint: '[JIRA-123] description of branch'
 ---
 
 # Branch
