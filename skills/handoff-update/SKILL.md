@@ -18,7 +18,7 @@ Keep only what is useful for future action:
 - unfinished active work that must be resumed or checked
 - approved next tasks that are ready to execute
 - human decisions needed before work can proceed
-- unresolved proposal/discussion state when planning is still active
+- unresolved proposal/discussion state, preserved by leaving `<board>` alone
 - blocked work and why it is blocked
 - accepted backlog items, when the project wants them in this file
 - stable project facts, constraints, and landmines
@@ -42,7 +42,7 @@ Agents should treat sections in this priority order:
 3. `<decide>` - questions that need the user
 4. `<blocked>` - work that cannot proceed until a reason is cleared
 5. `<backlog>` - lower-priority accepted ideas; execute only if mode permits or user asks
-6. `<board>` - proposals and discussion; advisory only, not assigned work
+6. `<board>` - proposals and discussion; advisory only, not assigned work; preserve, do not manage
 7. `<context>` - stable facts and landmines
 </authority_order>
 
@@ -120,12 +120,11 @@ Do not force empty sections into the file. Keep the structure readable, but pres
 - Use when work cannot proceed. Include `[reason]`, `[depends]`, and unblock criteria.
 
 `<board>`:
-- Use for proposals, agent discussion, alternatives, detailed planning, architecture analysis, and unresolved planning.
-- Advisory only. Never treat board proposals as assigned work unless the user explicitly approves/promotes them.
-- Discussion can be long and detailed. This is where agents and humans can argue through what to do, what not to do, risks, implementation options, and open questions.
-- If the detail is too large, reference a supporting markdown/design file from the relevant proposal or discussion entry. The handoff remains the canonical index and summary.
-- Prefer simple proposal IDs (`P1`, `P2`) over elaborate numbering.
-- Attribute entries (`by="codex"`, `by="claude"`, `by="gemini"`, `by="tom"`, etc.).
+- **Read-only for this skill. No exceptions.** Do not author, restructure, status-mark, or otherwise edit `<board>` content from `/handoff-update`. Preserve existing board XML verbatim when rewriting `handoff.xml`.
+- Any board write — new proposals, discussion turns, status changes, promotion bookkeeping (marking a proposal `approved`/`promoted`) — goes through `/handoff-agent-board`.
+- Rationale: `<board>` is multi-agent turn-taking state. Two skills writing to it creates last-writer-wins on proposal threads and destroys turn chronology. Even "just updating status" is a write, and carve-outs erode the boundary.
+- Advisory only. Never treat board proposals as assigned work unless the user explicitly approves/promotes them (through `/handoff-agent-board`).
+- Prefer simple proposal IDs (`P1`, `P2`). Attribute entries (`by="codex"`, `by="claude"`, `by="gemini"`, `by="tom"`, etc.).
 
 `<backlog>`:
 - Use for accepted ideas that are not current.
@@ -223,36 +222,7 @@ Use a next task packet for approved future work:
 </next>
 ```
 
-Use board entries for unapproved planning:
-
-```xml
-<board>
-  <proposals>
-    <proposal id="P1" status="proposed">
-      <title>Polish detail page image treatment</title>
-      <proposed_by>codex</proposed_by>
-      <files>`app/views/cars/_details.html.erb`</files>
-      <problem>Images can appear white, stretched, or visually weak.</problem>
-      <suggestion>Use a constrained gallery treatment with existing CSS.</suggestion>
-      <risks>Must preserve hotlinked images and strict CSP.</risks>
-      <details_ref>`docs/planning/detail-page-images.md` if deeper analysis is needed</details_ref>
-    </proposal>
-  </proposals>
-  <discussion>
-    <entry proposal="P1" by="codex" date="2026-04-24">
-      Prefer a CSS-only treatment first because the current constraints forbid
-      inline JS, inline styles, new build tooling, and image proxying. Main
-      unresolved issue is whether dealer images with white backgrounds should
-      use contain, cover, or a hybrid treatment.
-    </entry>
-    <entry proposal="P1" by="claude" date="2026-04-24">
-      Before implementation, inspect several real image URLs and decide the
-      desired mobile crop behavior. If the analysis is long, add a referenced
-      markdown note and summarize the conclusion here.
-    </entry>
-  </discussion>
-</board>
-```
+Board entries are out of scope for this skill. Do not edit `<board>` — see `/handoff-agent-board` for proposal and discussion templates.
 </task_packet_templates>
 
 <workflow>
@@ -271,7 +241,7 @@ Use board entries for unapproved planning:
    - convert user-approved plans into detailed `<next>` task packets
    - keep `<next>` focused; do not dump every idea there
 5. Maintain planning state:
-   - keep unresolved suggestions and detailed planning in `<board>`
+   - **do not edit `<board>`** — preserve existing board XML untouched; route board changes to `/handoff-agent-board`
    - put human choices in `<decide>`
    - put accepted lower-priority ideas in `<backlog>`
 6. Update durable context:
@@ -317,9 +287,9 @@ For project docs, update them when the session changed behavior that docs cover.
 <arguments>
 If the user provides arguments, treat them as freeform guidance:
 - "mark image polish active, mobile unchecked"
-- "promote P1 to next"
 - "move pagination ideas to backlog parking lot"
-- "summarize the architecture discussion in board"
+
+If the user asks for anything that edits `<board>` content — including proposals, discussion turns, status changes, or promotion bookkeeping (e.g. "promote P1 to next") — redirect to `/handoff-agent-board`. This skill does not touch `<board>`.
 
 Without arguments, infer the update from conversation, known session work, current handoff contents, and file inspection.
 </arguments>

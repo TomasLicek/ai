@@ -73,8 +73,9 @@ If `<active>` exists, do not skip to fresh work unless the user explicitly redir
 `<board>`:
 - Planning, proposals, discussion, disagreement, architecture analysis, and options.
 - Never treat board entries as assigned work.
-- In pickup mode, do not touch or modify board content.
-- Read board only when needed to understand context for an already selected task or when the user explicitly asks to discuss planning.
+- In pickup mode, do not touch or modify board content directly — board writes go through `/handoff-agent-board`.
+- Read board only when needed to understand context for an already selected task, when the user explicitly asks to discuss planning, or when surfacing a pending-turn status (see below).
+- **Named-turn reporting (not routing):** if `<active>`, `<next>`, and `<decide>` are empty and an open proposal has `next_turn="<this-agent>"`, surface a one-line status in the pickup summary — e.g. "P2 is waiting on this agent; invoke `/handoff-agent-board` to take the turn." Do NOT auto-route or auto-invoke. Tom is the dispatcher; let him decide whether to run the board skill. This keeps the human-routed loop honest.
 - Proposal IDs may be simple (`P1`, `P2`). Keep references intact when discussing them.
 
 `<context>`:
@@ -100,7 +101,8 @@ If `<active>` exists, do not skip to fresh work unless the user explicitly redir
    - else if `<decide>` has items, ask the user for the needed choices
    - else if `<blocked>` matters, surface blockers
    - else if `<backlog mode="agent_pool">` is available and no higher-priority section blocks work, choose a backlog item
-   - do not enter `<board>` from pickup unless the user explicitly asks for planning discussion
+   - if a `<board>` proposal has `next_turn="<this-agent>"`, mention it in the summary as a pending-turn status (e.g. "P2 is waiting on this agent; run `/handoff-agent-board` to take the turn") — but do not auto-route or auto-invoke. Tom dispatches.
+   - otherwise do not enter `<board>` from pickup unless the user explicitly asks for planning discussion
 
 5. Before editing files:
    - state the selected task and why it is authoritative

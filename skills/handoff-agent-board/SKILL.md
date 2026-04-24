@@ -14,23 +14,62 @@ This skill is the board chair / planning manager. Use it to run human/agent or m
 This skill plans and assigns work. It does not implement code and does not resume interrupted implementation work.
 </purpose>
 
+<cross_lab_mode>
+The board is the shared artifact for semi-automated multi-agent, multi-lab discussion (Claude, Codex, Gemini, etc.). Tom dispatches turns between CLIs manually — no automation layer yet. Design the loop so it survives with a human in the middle.
+
+Core rules:
+- **Turn tracking.** Each open proposal carries a `next_turn` attribute naming who is expected to act next. Three distinct values:
+  - `next_turn="<agent>"` — that agent (e.g. `"claude"`, `"codex"`, `"gemini"`) is expected to speak next
+  - `next_turn="tom"` — thread is waiting on the human (answer a question, make a decision, or dispatch the next speaker)
+  - unset / empty — open floor: no one is specifically expected; any agent may speak or Tom may dispatch
+  These three are semantically distinct. Do not conflate "waiting on Tom" with "open floor."
+- **One turn per invocation.** When invoked as an agent participant (not as chair), append exactly one attributed `<entry>` to the thread and stop. Do not also write turns for other agents. No ventriloquism — do not roleplay `by="codex"` from a Claude session or vice versa.
+- **Same-agent consecutive turns are fine.** A proposal may have several consecutive turns by the same agent (e.g. Claude thinking aloud across sessions). The protocol does not require alternation — `next_turn` does.
+- **Advance the turn on exit.** After appending an entry, update `next_turn`: name the agent whose input is actually needed next, set it to `tom` if the thread now needs the human, or clear it to `""` if the thread is open floor. Do not leave `next_turn` pointing at yourself after you just spoke unless you explicitly intend to take another turn without dispatch.
+- **Chair role is separate.** When the user explicitly asks for synthesis, finalization, or cross-thread cleanup, the chair may do more than one thing per invocation (still no ventriloquism — chair synthesis is attributed `by="<current-agent>"` and labeled as synthesis, not as someone else's turn).
+- **Stopping / convergence.** After ~3 substantive turns without new evidence, or when positions repeat, propose moving the thread to `needs_decision`, set `next_turn="tom"`, and add a `<decide>` item. Do not re-litigate.
+- **Turn length.** Keep turns tight — aim for ≤ ~300 words. If analysis is longer, extract to a supporting markdown file via `details_ref` and keep the entry as a summary + pointer.
+
+<turn_admission_rule>
+Before appending a turn, check each open proposal's `next_turn`:
+
+- **MAY speak** on a proposal when any of:
+  - `next_turn` names the current agent (e.g. you are Claude and `next_turn="claude"`)
+  - `next_turn` is unset or empty (open floor)
+  - the user dispatched this session with an explicit instruction to speak (e.g. "take a turn on P2", "respond to codex on P1"). User dispatch wins over `next_turn` — including when `next_turn="tom"`, if Tom explicitly delegates his turn to you.
+- **MUST decline** on a proposal when `next_turn` is set to any value other than the current agent (another lab, or `tom`) AND the user did not dispatch otherwise. Do not append. Output a short note naming the expected speaker (e.g. "P2 is awaiting codex; not speaking." or "P3 is waiting on Tom; not speaking.") so the dispatcher can route correctly. Silence is worse than a one-line status.
+- **New proposals**: any agent may add a new proposal without dispatch — that is how cross-lab ideas enter the board. Set `next_turn` on the new proposal to whoever should respond (often `tom`, sometimes another lab, rarely open floor). Do not spam: one new proposal per invocation unless the user asks for more.
+- **Consecutive same-agent turns**: allowed whenever `next_turn` still names the current agent after the previous turn, or when the user explicitly dispatches another turn. This covers "Claude thinking aloud across sessions" and does not require alternation.
+- **After speaking**, always update `next_turn` on the proposal — name the agent whose input is actually needed next, set it to `tom` if the thread now needs the human (question, decision, dispatch), or clear it to `""` if open floor. Never leave `next_turn` silently pointing at yourself unless you intend to continue without dispatch.
+</turn_admission_rule>
+</cross_lab_mode>
+
 <modes>
+`participant` mode (default for agent-as-speaker):
+- invoked by a dispatch like "take a turn on P1", "respond to codex on P2", or simply "you're up on the board"
+- read the relevant proposal thread, check `next_turn`, apply the `<turn_admission_rule>`
+- if admitted, append exactly one attributed `<entry>` with a required `turn="N"` and update `next_turn` on exit
+- if declined, output a one-line status naming the expected speaker and stop — no other edits
+- do NOT also add proposals, restructure threads, promote tasks, or synthesize other labs' views in this mode
+- this is the mode that implements the cross-lab turn-taking loop; do not confuse with discussion/finalize
+
 `discussion` mode:
+- broader planning work beyond a single dispatched turn
 - add proposals
-- append detailed discussion
+- append detailed discussion (still one entry per invocation if acting as a participant)
 - compare alternatives
-- request multiple agent viewpoints
+- request multiple agent viewpoints (only when the user explicitly asks to spawn intra-lab subagents)
 - identify risks, tradeoffs, and open questions
 - add or update `<decide>` items
 
 `finalize` mode:
-- mark proposals approved, rejected, or superseded
+- mark proposals approved, rejected, superseded, or promoted
 - convert approved proposals into detailed `<next>` task packets
 - move accepted but non-urgent ideas into `<backlog>`
 - set backlog mode when the user wants autonomous agent work
 - summarize what is ready for `/handoff-pickup`
 
-If the user intent is unclear, ask whether they want discussion mode or finalize mode.
+Default assumption: if the user dispatched a specific turn ("take a turn on P1", "respond on P2"), you are in `participant` mode — do not ask whether to discuss/finalize. Only ask for clarification if the dispatch is genuinely ambiguous (e.g. "look at the board" with no target).
 </modes>
 
 <scope>
@@ -87,7 +126,8 @@ Use simple proposal IDs: `P1`, `P2`, `P3`.
 Proposal statuses:
 - `proposed` - idea is open for discussion
 - `needs_decision` - blocked on a human choice
-- `approved` - user accepted the direction; it can be promoted into `<next>` or `<backlog>`
+- `approved` - user accepted the direction; ready to promote into `<next>` or `<backlog>`
+- `promoted` - already promoted into `<next>` or `<backlog>` (use `from_proposal` on the promoted item to close the loop)
 - `rejected` - user rejected it; keep briefly only if useful
 - `superseded` - replaced by another proposal
 
@@ -100,6 +140,7 @@ Each proposal should include enough context to discuss it without rediscovery:
 - risks
 - open questions
 - details_ref when deeper analysis lives in a supporting file
+- `next_turn` attribute naming the agent expected to speak next (or unset/empty for "open floor")
 
 Avoid agent-owned proposal sections such as `<codex_proposals>` or `<claude_proposals>`.
 The board is organized by proposal and discussion thread, not by agent territory.
@@ -123,7 +164,7 @@ Entries should be attributed:
 - `proposal="P1"`
 - `by="codex"`, `by="claude"`, `by="gemini"`, `by="tom"`, etc.
 - `date="YYYY-MM-DD"`
-- optional `turn="1"`, `turn="2"` when order needs to be explicit
+- `turn="N"` — **required** when appending to an existing thread. Monotonic per proposal; read the last entry's `turn` and increment. For the first entry in a thread, use `turn="1"`. This is the only reliable chronology signal in a human-routed cross-lab loop.
 
 Good discussion entries often do one of these:
 - propose an approach
@@ -217,6 +258,8 @@ Do not put discussion, rejected alternatives, or temporary planning notes in `<c
 Keep those in `<board>`.
 
 If the fact also belongs in project guidance, update `CLAUDE.md`, `AGENTS.md`, or the canonical symlink target when appropriate.
+
+Do not update `<context>` or project guidance in `participant` mode. A participant turn appends one discussion entry, updates `next_turn`, and stops.
 </context_rules>
 
 <workflow>
@@ -228,16 +271,18 @@ If the fact also belongs in project guidance, update `CLAUDE.md`, `AGENTS.md`, o
 3. Read `<context>`, `<active>`, and `<blocked>` only enough to avoid conflicts and respect constraints.
 
 4. Determine mode:
+   - participant: default for a dispatched turn; append one entry, update `next_turn`, and stop
    - discussion: gather, compare, debate, and document
    - finalize: approve/reject/supersede, promote to `<next>` or `<backlog>`, and clean decision state
    - mixed: do both, but keep discussion and promotion steps explicit
 
-5. If multiple agents or viewpoints are requested or useful:
-   - use parallel agents when the runtime and user instructions allow it
-   - assign each agent a distinct planning viewpoint or proposal
+5. If the user explicitly asks this skill to spawn subagents for parallel viewpoints (e.g. "have a risk reviewer and a UX reviewer weigh in on P3"):
+   - spawn subagents only on explicit request — do not fan out by default
+   - this is an intra-lab helper, not the cross-lab mechanism; cross-lab turns are routed by Tom between CLIs (see `<cross_lab_mode>`)
+   - assign each subagent a distinct planning viewpoint or proposal
    - ask for findings, risks, recommendations, and suggested task breakdowns
    - do not assign implementation work
-   - main agent merges results into attributed board discussion and task packets
+   - main agent merges subagent results into a single attributed entry under its own `by=` — no ventriloquism for other labs
 
 6. For discussion mode:
    - add/update proposals
@@ -264,21 +309,22 @@ If the fact also belongs in project guidance, update `CLAUDE.md`, `AGENTS.md`, o
 </workflow>
 
 <parallel_planning_patterns>
-Use parallel planning agents when useful and allowed:
-- one agent reviews implementation complexity
-- one agent reviews UX/product consequences
-- one agent reviews performance or architecture risk
-- one agent challenges the proposal and lists failure modes
-- one agent converts approved proposal details into candidate task packets
+Intra-lab only. Spawn subagents **only when the user explicitly asks** this skill to bring in multiple viewpoints from within the current lab (e.g. "have a risk reviewer and a UX reviewer weigh in"). Default behavior is one-agent-one-turn per invocation.
 
-Keep write ownership with the main agent. Subagents return analysis; the main agent edits `handoff.xml`.
+This is distinct from cross-lab turn-taking, which is always human-routed between CLIs — subagents of the current lab never speak as other labs.
+
+When subagents are explicitly requested:
+- possible roles: implementation complexity, UX/product consequences, performance/architecture risk, challenge / failure modes, task-packet drafter
+- subagents return analysis; main agent edits `handoff.xml`
+- merged output becomes a single `<entry>` attributed `by="<current-agent>"` summarizing the subagents' findings — not multiple entries faking cross-lab participation
+- keep write ownership with the main agent
 </parallel_planning_patterns>
 
 <templates>
 Proposal:
 
 ```xml
-<proposal id="P1" status="proposed">
+<proposal id="P1" status="proposed" next_turn="claude">
   <title>Polish detail page image treatment</title>
   <proposed_by>codex</proposed_by>
   <files>`app/views/cars/_details.html.erb`</files>
