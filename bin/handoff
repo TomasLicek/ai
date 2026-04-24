@@ -1,0 +1,311 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "cgi"
+require "optparse"
+require "rexml/document"
+require "shellwords"
+require "tempfile"
+
+Item = Struct.new(:section, :id, :title, :status, :turn, :rank, :body, :source, keyword_init: true) do
+  def label
+    parts = [section.ljust(8), id.to_s.ljust(5), title]
+    meta = [status, turn && "turn:#{turn}"].compact.reject(&:empty?)
+    parts << "[#{meta.join(", ")}]" unless meta.empty?
+    parts.join(" ")
+  end
+end
+
+def text_of(element, name)
+  node = element.elements[name]
+  node ? normalize(node.text.to_s) : ""
+end
+
+def normalize(text)
+  lines = CGI.unescapeHTML(text)
+             .gsub(/\r\n?/, "\n")
+             .lines
+             .map(&:rstrip)
+
+  lines.shift while lines.first&.empty?
+  lines.pop while lines.last&.empty?
+
+  indent = lines.reject(&:empty?).map { |line| line[/\A */].size }.min || 0
+  lines.map { |line| line.empty? ? "" : line[indent..] }.join("\n").strip
+end
+
+def attr(element, name)
+  element.attributes[name].to_s
+end
+
+def nearest_handoff(start_dir)
+  dir = File.expand_path(start_dir)
+
+  loop do
+    candidate = File.join(dir, "handoff.xml")
+    return candidate if File.file?(candidate)
+
+    parent = File.dirname(dir)
+    return nil if parent == dir
+
+    dir = parent
+  end
+end
+
+def xml_document_from(path)
+  raw = File.read(path)
+  xml = if (match = raw.match(/<handoff(?:\s|>)/))
+          raw[match.begin(0)..]
+        else
+          "<handoff>\n#{raw}\n</handoff>"
+        end
+
+  xml = xml.gsub(/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)/, "&amp;")
+
+  REXML::Document.new(xml)
+rescue REXML::ParseException => error
+  warn "Could not parse #{path} as handoff XML: #{error.message.lines.first&.strip}"
+  exit 1
+end
+
+def collect_children(element, names)
+  names.filter_map do |name|
+    value = text_of(element, name)
+    next if value.empty?
+
+    "#{name.tr("_", " ").capitalize}:\n#{value}"
+  end
+end
+
+def task_body(task)
+  parts = []
+  parts << text_of(task, "title")
+  parts << ""
+  parts.concat collect_children(task, %w[goal files constraints implementation_plan acceptance verify landmine why])
+  parts.reject(&:empty?).join("\n\n")
+end
+
+def decide_body(item)
+  parts = []
+  parts << text_of(item, "question")
+  parts << ""
+  parts.concat collect_children(item, %w[options recommended])
+  parts.reject(&:empty?).join("\n\n")
+end
+
+def proposal_body(proposal)
+  parts = []
+  parts << text_of(proposal, "title")
+  parts << ""
+  parts.concat collect_children(proposal, %w[problem context options recommendation risks open_questions files])
+  parts.reject(&:empty?).join("\n\n")
+end
+
+def backlog_body(item)
+  parts = []
+  parts << text_of(item, "title")
+  parts << ""
+  parts.concat collect_children(item, %w[why files landmine])
+  parts.reject(&:empty?).join("\n\n")
+end
+
+def parse_handoff(path)
+  doc = xml_document_from(path)
+  items = []
+
+  doc.elements.each("handoff/decide/item") do |item|
+    status = attr(item, "status")
+    next unless status.empty? || %w[open needs_decision].include?(status)
+
+    proposal = attr(item, "proposal")
+    items << Item.new(
+      section: "DECIDE",
+      id: proposal.empty? ? attr(item, "id") : proposal,
+      title: text_of(item, "question"),
+      status: status,
+      rank: 10,
+      body: decide_body(item),
+      source: path
+    )
+  end
+
+  doc.elements.each("handoff/next/task") do |task|
+    items << Item.new(
+      section: "NEXT",
+      id: attr(task, "id"),
+      title: text_of(task, "title"),
+      status: attr(task, "status"),
+      rank: 20,
+      body: task_body(task),
+      source: path
+    )
+  end
+
+  doc.elements.each("handoff/blocked/task | handoff/blocked/item") do |task|
+    items << Item.new(
+      section: "BLOCKED",
+      id: attr(task, "id"),
+      title: text_of(task, "title"),
+      status: attr(task, "status"),
+      rank: 30,
+      body: task_body(task),
+      source: path
+    )
+  end
+
+  doc.elements.each("handoff/board/proposal") do |proposal|
+    status = attr(proposal, "status")
+    turn = attr(proposal, "next_turn")
+    next unless status == "needs_decision" || turn == "tom"
+
+    items << Item.new(
+      section: "PROPOSE",
+      id: attr(proposal, "id"),
+      title: text_of(proposal, "title"),
+      status: status,
+      turn: turn,
+      rank: 40,
+      body: proposal_body(proposal),
+      source: path
+    )
+  end
+
+  doc.elements.each("handoff/backlog/item") do |item|
+    items << Item.new(
+      section: "BACKLOG",
+      id: attr(item, "id"),
+      title: text_of(item, "title"),
+      status: attr(item, "status"),
+      rank: 50,
+      body: backlog_body(item),
+      source: path
+    )
+  end
+
+  items.sort_by { |item| [item.rank, item.id.to_s] }
+end
+
+def usage
+  <<~USAGE
+    Usage:
+      handoff [--file PATH]              Open fzf view, or print list if fzf is unavailable
+      handoff list [--file PATH]         Print all open handoff items
+      handoff decide [--file PATH]       Print only decisions
+      handoff next [--file PATH]         Print only ready/next tasks
+      handoff backlog [--file PATH]      Print backlog items
+      handoff show ID [--file PATH]      Print one item/proposal by id
+
+    The command finds the nearest handoff.xml from the current directory upward.
+  USAGE
+end
+
+options = {}
+parser = OptionParser.new do |opts|
+  opts.banner = usage
+  opts.on("--file PATH", "Read a specific handoff.xml") { |value| options[:file] = value }
+  opts.on("-h", "--help", "Show help") do
+    puts usage
+    exit 0
+  end
+end
+
+parser.order!
+command = ARGV.shift || "fzf"
+path = options[:file] ? File.expand_path(options[:file]) : nearest_handoff(Dir.pwd)
+
+unless path
+  warn "No handoff.xml found from #{Dir.pwd} upward."
+  exit 1
+end
+
+unless File.file?(path)
+  warn "No such handoff file: #{path}"
+  exit 1
+end
+
+items = parse_handoff(path)
+
+def print_items(items, path)
+  puts "handoff: #{path}"
+  puts
+  if items.empty?
+    puts "(no open handoff items)"
+  else
+    items.each { |item| puts item.label }
+  end
+end
+
+case command
+when "list"
+  print_items(items, path)
+when "decide", "decisions"
+  print_items(items.select { |item| item.section == "DECIDE" || item.turn == "tom" }, path)
+when "next"
+  print_items(items.select { |item| item.section == "NEXT" }, path)
+when "backlog"
+  print_items(items.select { |item| item.section == "BACKLOG" }, path)
+when "show"
+  id = ARGV.shift
+  unless id
+    warn "Usage: handoff show ID"
+    exit 1
+  end
+
+  item = items.find { |candidate| candidate.id == id }
+  unless item
+    warn "No item with id #{id.inspect} in #{path}"
+    exit 1
+  end
+
+  puts item.label
+  puts
+  puts item.body
+when "fzf"
+  if items.empty?
+    puts "No open handoff items in #{path}"
+    exit 0
+  end
+
+  unless system("command -v fzf >/dev/null 2>&1")
+    print_items(items, path)
+    exit 0
+  end
+
+  Tempfile.create("handoff-items") do |list_file|
+      Tempfile.create("handoff-preview") do |preview_file|
+        items.each do |item|
+          preview_file.puts "__HANDOFF_ITEM__ #{item.section} #{item.id}"
+        preview_file.puts item.label
+        preview_file.puts
+        preview_file.puts item.body
+        preview_file.puts
+      end
+      preview_file.flush
+
+      items.each { |item| list_file.puts item.label }
+      list_file.flush
+      list_file.rewind
+
+      preview = "awk -v section=$(echo {} | awk '{print $1}') " \
+                "-v id=$(echo {} | awk '{print $2}') " \
+                "'$1 == \"__HANDOFF_ITEM__\" {show = ($2 == section && $3 == id); next} show {print}' " \
+                "#{Shellwords.escape(preview_file.path)}"
+
+      exec(
+        "fzf",
+        "--ansi",
+        "--height=90%",
+        "--layout=reverse",
+        "--border",
+        "--prompt=handoff> ",
+        "--header=#{path}",
+        "--preview=#{preview}",
+        "--preview-window=right,65%,wrap",
+        in: list_file
+      )
+    end
+  end
+else
+  warn usage
+  exit 1
+end
