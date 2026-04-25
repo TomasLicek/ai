@@ -71,9 +71,10 @@ If `<active>` exists, do not skip to fresh work unless the user explicitly redir
 - If a backlog item is vague, ask before turning it into implementation work.
 
 `<board>`:
-- Planning, proposals, discussion, disagreement, architecture analysis, and options.
+- Planning proposals, proposal-local discussion, disagreement, architecture analysis, and options.
 - Never treat board entries as assigned work.
 - In pickup mode, do not touch or modify board content directly — board writes go through `/handoff-agent-board`.
+- Board shape: proposals live directly under `<board>`, and each proposal's discussion lives inside that proposal as `<discussion>`. Do not expect or create a shared board-level discussion section.
 - Read board only when needed to understand context for an already selected task, when the user explicitly asks to discuss planning, or when surfacing a pending-turn status (see below).
 - **Named-turn reporting (not routing):** if `<active>`, `<next>`, and `<decide>` are empty and an open proposal has `next_turn="<this-agent>"`, surface a one-line status in the pickup summary — e.g. "P2 is waiting on this agent; invoke `/handoff-agent-board` to take the turn." Do NOT auto-route or auto-invoke. Tom is the dispatcher; let him decide whether to run the board skill. This keeps the human-routed loop honest.
 - Proposal IDs may be simple (`P1`, `P2`). Keep references intact when discussing them.

@@ -74,13 +74,13 @@ Prefer this structure:
   </blocked>
 
   <board>
-    <proposals>
+    <proposal id="P1" status="proposed" next_turn="tom">
       Agent or human suggestions that are not approved work yet.
-    </proposals>
-    <discussion>
-      Detailed planning discussion, architecture analysis, disagreement,
-      tradeoffs, and references tied to proposal IDs.
-    </discussion>
+      <discussion>
+        Detailed planning discussion, architecture analysis, disagreement,
+        tradeoffs, and references for this proposal.
+      </discussion>
+    </proposal>
   </board>
 
   <backlog mode="parking_lot">
@@ -111,6 +111,7 @@ Do not force empty sections into the file. Keep the structure readable, but pres
 - Include goal, files, constraints, implementation plan, acceptance checks, verification commands, and landmines.
 - `<next>` is authoritative; agents may execute from here.
 - If a plan is too large to fit cleanly, reference a supporting file, but keep the canonical task summary and decision state here.
+- A `<next>` task must never depend on deleted `<board>` discussion for implementation details. If details are missing, restore them into the task packet or a referenced plan file through `/handoff-agent-board`.
 
 `<decide>`:
 - Use for crisp user choices. Include options and consequences when useful.
@@ -121,16 +122,19 @@ Do not force empty sections into the file. Keep the structure readable, but pres
 
 `<board>`:
 - **Read-only for this skill. No exceptions.** Do not author, restructure, status-mark, or otherwise edit `<board>` content from `/handoff-update`. Preserve existing board XML verbatim when rewriting `handoff.xml`.
-- Any board write — new proposals, discussion turns, status changes, promotion bookkeeping (marking a proposal `approved`/`promoted`) — goes through `/handoff-agent-board`.
+- Board shape: proposals live directly under `<board>`, and each proposal's discussion lives inside that proposal as `<discussion>`. Do not create a shared board-level discussion section.
+- Any board write — new proposals, proposal-local discussion turns, status changes, promotion cleanup, or removal of promoted proposals including nested discussion — goes through `/handoff-agent-board`.
 - Rationale: `<board>` is multi-agent turn-taking state. Two skills writing to it creates last-writer-wins on proposal threads and destroys turn chronology. Even "just updating status" is a write, and carve-outs erode the boundary.
 - Advisory only. Never treat board proposals as assigned work unless the user explicitly approves/promotes them (through `/handoff-agent-board`).
-- Prefer simple proposal IDs (`P1`, `P2`). Attribute entries (`by="codex"`, `by="claude"`, `by="gemini"`, `by="tom"`, etc.).
+- Prefer simple proposal IDs (`P1`, `P2`). Proposal-local discussion entries are attributed with `by=`, `date=`, and `turn=`; they do not need `proposal=`.
 
 `<backlog>`:
 - Use for accepted ideas that are not current.
 - `mode="parking_lot"` means backlog is memory for the user/project. Agents must not execute from it unless the user explicitly asks or an item is promoted to `<next>`.
 - `mode="agent_pool"` means autonomous agents may pick from it, but only when `<active>`, `<next>`, and `<decide>` are empty or the user explicitly asks for autonomous work.
 - Keep backlog items shorter than `<next>` task packets. Expand them only when promoting to `<next>`.
+- Backlog items whose source proposal has been removed from `<board>` must include the full accepted scope and known implementation direction, either inline or through a supporting-file reference.
+- If a backlog item is not executable yet, state the missing decisions or dependencies instead of relying on deleted board discussion.
 
 `<context>`:
 - Use for durable facts: project setup, commands, architectural constraints, known landmines.
@@ -240,6 +244,7 @@ Board entries are out of scope for this skill. Do not edit `<board>` — see `/h
 4. Maintain approved next work:
    - convert user-approved plans into detailed `<next>` task packets
    - keep `<next>` focused; do not dump every idea there
+   - ensure `<next>` tasks are self-sufficient and do not rely on board discussion that may be removed after promotion
 5. Maintain planning state:
    - **do not edit `<board>`** — preserve existing board XML untouched; route board changes to `/handoff-agent-board`
    - put human choices in `<decide>`
@@ -289,7 +294,7 @@ If the user provides arguments, treat them as freeform guidance:
 - "mark image polish active, mobile unchecked"
 - "move pagination ideas to backlog parking lot"
 
-If the user asks for anything that edits `<board>` content — including proposals, discussion turns, status changes, or promotion bookkeeping (e.g. "promote P1 to next") — redirect to `/handoff-agent-board`. This skill does not touch `<board>`.
+If the user asks for anything that edits `<board>` content — including proposals, proposal-local discussion turns, status changes, promotion cleanup, or removing promoted proposals — redirect to `/handoff-agent-board`. This skill does not touch `<board>`.
 
 Without arguments, infer the update from conversation, known session work, current handoff contents, and file inspection.
 </arguments>

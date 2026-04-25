@@ -15,29 +15,33 @@ This skill plans and assigns work. It does not implement code and does not resum
 </purpose>
 
 <cross_lab_mode>
-The board is the shared artifact for semi-automated multi-agent, multi-lab discussion (Claude, Codex, Gemini, etc.). Tom dispatches turns between CLIs manually — no automation layer yet. Design the loop so it survives with a human in the middle.
+The board is the shared artifact for semi-automated multi-agent, multi-lab discussion (Claude, Codex, Gemini, etc.). Tom dispatches turns between CLIs manually — no automation layer yet.
 
 Core rules:
-- **Turn tracking.** Each open proposal carries a `next_turn` attribute naming who is expected to act next. Three distinct values:
-  - `next_turn="<agent>"` — that agent (e.g. `"claude"`, `"codex"`, `"gemini"`) is expected to speak next
-  - `next_turn="tom"` — thread is waiting on the human (answer a question, make a decision, or dispatch the next speaker)
-  - unset / empty — open floor: no one is specifically expected; any agent may speak or Tom may dispatch
-  These three are semantically distinct. Do not conflate "waiting on Tom" with "open floor."
-- **One turn per invocation.** When invoked as an agent participant (not as chair), append exactly one attributed `<entry>` to the thread and stop. Do not also write turns for other agents. No ventriloquism — do not roleplay `by="codex"` from a Claude session or vice versa.
+- **Turn tracking.** Each open proposal carries a `next_turn` attribute naming who is expected to act next:
+  - `next_turn="agent"` 
+  - `next_turn="user"` - waiting on the user to answer a question or make a decision
+- **One turn per proposal per invocation.** When invoked as an agent participant (not as chair), inspect the relevant open proposal threads. If multiple proposals are admitted for the current agent, handle each admitted proposal once in the same invocation. Append at most one attributed `<entry>` per proposal thread unless the user explicitly dispatches multiple turns on the same proposal. Do not write turns for other agents. No ventriloquism — do not roleplay `by="codex"` from a Claude session or vice versa.
 - **Same-agent consecutive turns are fine.** A proposal may have several consecutive turns by the same agent (e.g. Claude thinking aloud across sessions). The protocol does not require alternation — `next_turn` does.
 - **Advance the turn on exit.** After appending an entry, update `next_turn`: name the agent whose input is actually needed next, set it to `tom` if the thread now needs the human, or clear it to `""` if the thread is open floor. Do not leave `next_turn` pointing at yourself after you just spoke unless you explicitly intend to take another turn without dispatch.
 - **Chair role is separate.** When the user explicitly asks for synthesis, finalization, or cross-thread cleanup, the chair may do more than one thing per invocation (still no ventriloquism — chair synthesis is attributed `by="<current-agent>"` and labeled as synthesis, not as someone else's turn).
-- **Stopping / convergence.** After ~3 substantive turns without new evidence, or when positions repeat, propose moving the thread to `needs_decision`, set `next_turn="tom"`, and add a `<decide>` item. Do not re-litigate.
+- **Stopping / convergence.** Aim for at least 3 full back-and-forth rounds before setting `next_turn="tom"`. Do not escalate just because the current agent's view feels settled — the other lab may still have useful pushback or a different angle. Exception: if the issue is genuinely simple and both agents have explicitly converged (not just one feeling done), escalating after 2 rounds is fine. When in doubt, pass to the other lab first. After rounds produce no new evidence or positions repeat, propose `needs_decision`, set `next_turn="tom"`, and add a `<decide>` item. Do not re-litigate.
 - **Turn length.** Keep turns tight — aim for ≤ ~300 words. If analysis is longer, extract to a supporting markdown file via `details_ref` and keep the entry as a summary + pointer.
 
 <turn_admission_rule>
-Before appending a turn, check each open proposal's `next_turn`:
+Before appending a turn, check each relevant open proposal's `next_turn`. If the user did not name a specific proposal, "relevant" means every open proposal whose `next_turn` names the current agent or is unset/empty:
 
 - **MAY speak** on a proposal when any of:
   - `next_turn` names the current agent (e.g. you are Claude and `next_turn="claude"`)
   - `next_turn` is unset or empty (open floor)
   - the user dispatched this session with an explicit instruction to speak (e.g. "take a turn on P2", "respond to codex on P1"). User dispatch wins over `next_turn` — including when `next_turn="tom"`, if Tom explicitly delegates his turn to you.
-- **MUST decline** on a proposal when `next_turn` is set to any value other than the current agent (another lab, or `tom`) AND the user did not dispatch otherwise. Do not append. Output a short note naming the expected speaker (e.g. "P2 is awaiting codex; not speaking." or "P3 is waiting on Tom; not speaking.") so the dispatcher can route correctly. Silence is worse than a one-line status.
+- **MUST decline** on a proposal when `next_turn` is set to any value other than the current agent (another lab, or `tom`) AND the user did not dispatch otherwise AND none of the watchdog conditions below apply. Do not append to that proposal. If no proposals were admitted and no watchdog conditions apply, output a short note naming the expected speaker (e.g. "P2 is awaiting codex; not speaking." or "P3 is waiting on Tom; not speaking.") so the dispatcher can route correctly. Silence is worse than a one-line status.
+- **Out-of-turn watchdog exception**: any agent MAY append a single flagging entry to any proposal — even when `next_turn` names another agent or `tom` — when it spots one of the following:
+  - (a) **Constraint violation**: the discussion direction would break a known rule (CSP, Bulma-only, no inline styles/JS, CLAUDE.md policy, stack constraints from `<context>`).
+  - (b) **Factual error**: a prior entry states something wrong about files, schema, routes, behavior, or project history in a way that would send the thread to a wrong conclusion.
+  - (c) **Scope drift**: discussion is drifting toward implementation work the skill must not do, toward promoting something that isn't clearly approved, or away from the stated problem in the proposal.
+  - (d) **Decision-altering missing insight**: something no prior entry addressed that materially changes which option is correct or safe — not "I have a preference," but "this changes the outcome."
+  The threshold is "this will cause real harm if uncorrected now." Disagreement with style or framing is not a flag. Mark the entry with `type="flag"` so the thread stays navigable. After appending a watchdog entry, do NOT steal `next_turn` from whoever holds it — set it back to the prior holder, or escalate to `tom` if the flagged issue requires a human call.
 - **New proposals**: any agent may add a new proposal without dispatch — that is how cross-lab ideas enter the board. Set `next_turn` on the new proposal to whoever should respond (often `tom`, sometimes another lab, rarely open floor). Do not spam: one new proposal per invocation unless the user asks for more.
 - **Consecutive same-agent turns**: allowed whenever `next_turn` still names the current agent after the previous turn, or when the user explicitly dispatches another turn. This covers "Claude thinking aloud across sessions" and does not require alternation.
 - **After speaking**, always update `next_turn` on the proposal — name the agent whose input is actually needed next, set it to `tom` if the thread now needs the human (question, decision, dispatch), or clear it to `""` if open floor. Never leave `next_turn` silently pointing at yourself unless you intend to continue without dispatch.
@@ -47,26 +51,28 @@ Before appending a turn, check each open proposal's `next_turn`:
 <modes>
 `participant` mode (default for agent-as-speaker):
 - invoked by a dispatch like "take a turn on P1", "respond to codex on P2", or simply "you're up on the board"
-- read the relevant proposal thread, check `next_turn`, apply the `<turn_admission_rule>`
-- if admitted, append exactly one attributed `<entry>` with a required `turn="N"` and update `next_turn` on exit
-- if declined, output a one-line status naming the expected speaker and stop — no other edits
+- read the relevant proposal thread(s), check `next_turn`, apply the `<turn_admission_rule>`
+- if admitted, append exactly one attributed `<entry>` with a required `turn="N"` to each admitted proposal thread and update that proposal's `next_turn` on exit
+- if a proposal is declined, skip that proposal; if all relevant proposals are declined, output a one-line status naming the expected speaker and stop — no other edits
+- **watchdog exception**: even in participant mode, append a single `type="flag"` entry to any proposal where you spot a constraint violation, factual error, scope drift, or decision-altering missing insight — regardless of `next_turn`. After the flag, restore `next_turn` to its prior holder or escalate to `tom`. See the out-of-turn watchdog exception in `<turn_admission_rule>` for the exact threshold.
 - do NOT also add proposals, restructure threads, promote tasks, or synthesize other labs' views in this mode
 - this is the mode that implements the cross-lab turn-taking loop; do not confuse with discussion/finalize
 
 `discussion` mode:
 - broader planning work beyond a single dispatched turn
 - add proposals
-- append detailed discussion (still one entry per invocation if acting as a participant)
+- append detailed discussion (still one entry per admitted proposal if acting as a participant)
 - compare alternatives
 - request multiple agent viewpoints (only when the user explicitly asks to spawn intra-lab subagents)
 - identify risks, tradeoffs, and open questions
 - add or update `<decide>` items
 
 `finalize` mode:
-- mark proposals approved, rejected, superseded, or promoted
+- mark proposals approved, rejected, or superseded when they stay on the board
 - convert approved proposals into detailed `<next>` task packets
 - move accepted but non-urgent ideas into `<backlog>`
 - set backlog mode when the user wants autonomous agent work
+- remove proposals from `<board>` after promoting them into `<next>` or `<backlog>`
 - summarize what is ready for `/handoff-pickup`
 
 Default assumption: if the user dispatched a specific turn ("take a turn on P1", "respond on P2"), you are in `participant` mode — do not ask whether to discuss/finalize. Only ask for clarification if the dispatch is genuinely ambiguous (e.g. "look at the board" with no target).
@@ -76,7 +82,7 @@ Default assumption: if the user dispatched a specific turn ("take a turn on P1",
 May touch:
 - `<board>`
 - `<board><proposals>`
-- `<board><discussion>`
+- `<board><proposal><discussion>`
 - `<decide>`
 - `<next>` when promoting approved executable work
 - `<backlog>` when parking accepted ideas or creating an autonomous task pool
@@ -127,7 +133,6 @@ Proposal statuses:
 - `proposed` - idea is open for discussion
 - `needs_decision` - blocked on a human choice
 - `approved` - user accepted the direction; ready to promote into `<next>` or `<backlog>`
-- `promoted` - already promoted into `<next>` or `<backlog>` (use `from_proposal` on the promoted item to close the loop)
 - `rejected` - user rejected it; keep briefly only if useful
 - `superseded` - replaced by another proposal
 
@@ -140,6 +145,7 @@ Each proposal should include enough context to discuss it without rediscovery:
 - risks
 - open questions
 - details_ref when deeper analysis lives in a supporting file
+- `<discussion>` child containing that proposal's chronological entries
 - `next_turn` attribute naming the agent expected to speak next (or unset/empty for "open floor")
 
 Avoid agent-owned proposal sections such as `<codex_proposals>` or `<claude_proposals>`.
@@ -148,8 +154,10 @@ The board is organized by proposal and discussion thread, not by agent territory
 
 <discussion_rules>
 Discussion entries should be detailed when the topic needs detail.
-Agents and humans append entries to the same proposal thread and take turns.
-Do not create per-agent discussion sections. Preserve chronology.
+Agents and humans append entries inside the owning proposal's `<discussion>`
+child and take turns there. Do not put all proposal discussion in one
+board-level `<discussion>` section. Do not create per-agent discussion
+sections. Preserve chronology within each proposal.
 
 Use discussion for:
 - why an approach is good or bad
@@ -161,20 +169,24 @@ Use discussion for:
 - references to supporting analysis files
 
 Entries should be attributed:
-- `proposal="P1"`
 - `by="codex"`, `by="claude"`, `by="gemini"`, `by="tom"`, etc.
-- `date="YYYY-MM-DD"`
 - `turn="N"` — **required** when appending to an existing thread. Monotonic per proposal; read the last entry's `turn` and increment. For the first entry in a thread, use `turn="1"`. This is the only reliable chronology signal in a human-routed cross-lab loop.
+
+**Critical but honest engagement.** When reading a prior entry from another agent:
+- Assume the other agent's reasoning may be incomplete, biased toward its own framing, or missing a constraint you know. Start from mild suspicion, not deference.
+- If after scrutiny the point is genuinely sound, say so explicitly and move on. Hollow agreement ("I agree with everything above") is useless. Real agreement names what you checked and why it held up.
+- Pushback for its own sake is equally useless. Only challenge when you have a concrete reason: a missing constraint, a different reading of the spec, a failure mode the other agent didn't model. No reflexive contrarianism.
+- The goal is a better decision, not winning the exchange.
 
 Good discussion entries often do one of these:
 - propose an approach
-- challenge a prior entry
-- answer a prior concern
+- challenge a prior entry with a specific reason
+- concede a prior point after checking it, and explain what you verified
 - add evidence from file inspection
 - identify a decision needed from the user
 - summarize convergence or remaining disagreement
 
-If analysis is too long for `handoff.xml`, create or reference a supporting markdown/design file. Keep the board entry as the canonical index: summary, status, decision needed, and file reference.
+If analysis is too long for `handoff.xml`, create or reference a supporting markdown/design file. Keep the proposal-local discussion entry as the canonical index: summary, status, decision needed, and file reference.
 </discussion_rules>
 
 <decide_rules>
@@ -213,56 +225,29 @@ Promote to `<backlog mode="agent_pool">` when:
 
 Promotion should preserve traceability:
 - include `from_proposal="P1"` on promoted tasks/items when useful
-- leave the proposal marked `approved`, `superseded`, or `promoted`
-- keep a short board note explaining where it went
+- ensure the promoted task/item is self-sufficient before deleting board discussion: either include the implementation details directly, or include a `details_ref`/supporting-file reference to the canonical plan
+- remove the proposal, including its nested `<discussion>`, from `<board>` after the promoted task/item exists
+- do not keep a shortened duplicate proposal in `<board>` just to say where it went
+- put any durable outcome in `<context>` only if it is a lasting project fact, constraint, or landmine
+- keep rejected/superseded proposals only when their reasoning prevents future re-litigation
 </promotion_rules>
 
-<next_task_quality>
-When promoting to `<next>`, create a detailed executable task packet:
-- title
-- files or areas
-- goal
-- constraints
-- implementation plan
-- acceptance criteria
-- verification commands/checks
-- landmines
-- dependencies
-- owner/agent suggestions when useful
-- parallelization notes when useful
+<task_quality>
+When promoting to `<next>` or `<backlog>`, create a very detailed executable task packet. We do not want to reinvent the wheel again when start implementing. Add `details_reference_files` to a supporting plan/design file when the scope or implementation plan is too large/long to fit into handoff.xml
 
-If the task is unclear, do not promote it. Ask or leave it in `<decide>`.
-</next_task_quality>
-
-<backlog_quality>
-Backlog items can be shorter than `<next>` packets, but they still need:
-- title
-- source proposal
-- why it matters
-- files or areas when known
-- status
-- constraints or landmines if important
-
-If `mode="agent_pool"`, backlog items must be concrete enough for autonomous agents to choose safely.
-</backlog_quality>
+If the task is unclear or would depend on deleted board discussion to execute, do not promote it. Ask or leave it in `<decide>`.
+</task_quality>
 
 <context_rules>
-Update `<context>` when planning resolves a durable fact that future agents should treat as background truth:
-- architectural decisions
-- project-wide constraints
-- stable workflow policy
-- tool or command landmines
-- "do not do this" rules that should outlive the proposal
+Update `<context>` to store context that is not a long term (such context belongs to CLAUDE.md or documentation).
 
-Do not put discussion, rejected alternatives, or temporary planning notes in `<context>`.
-Keep those in `<board>`.
+Do not put discussion, rejected alternatives, or temporary planning notes in `<context>`. Keep those in `<board>`.
 
-If the fact also belongs in project guidance, update `CLAUDE.md`, `AGENTS.md`, or the canonical symlink target when appropriate.
-
-Do not update `<context>` or project guidance in `participant` mode. A participant turn appends one discussion entry, updates `next_turn`, and stops.
+If the fact also belongs in project guidance, update `CLAUDE.md` and relevant`documentation`.
 </context_rules>
 
 <workflow>
+
 1. Read project-root `handoff.xml`.
    - If missing, ask whether to create one.
 
@@ -271,7 +256,7 @@ Do not update `<context>` or project guidance in `participant` mode. A participa
 3. Read `<context>`, `<active>`, and `<blocked>` only enough to avoid conflicts and respect constraints.
 
 4. Determine mode:
-   - participant: default for a dispatched turn; append one entry, update `next_turn`, and stop
+   - participant: default for a dispatched turn; append one entry per admitted proposal, update each touched `next_turn`, and stop
    - discussion: gather, compare, debate, and document
    - finalize: approve/reject/supersede, promote to `<next>` or `<backlog>`, and clean decision state
    - mixed: do both, but keep discussion and promotion steps explicit
@@ -292,36 +277,36 @@ Do not update `<context>` or project guidance in `participant` mode. A participa
 
 7. For finalize mode:
    - confirm approval is clear
-   - mark proposal status
    - create detailed `<next>` packets for ready work
    - create `<backlog>` items for accepted later work
+   - remove promoted proposals, including nested discussion, from `<board>` after traceability is captured with `from_proposal`
+   - mark only unpromoted proposals as approved, rejected, superseded, or needs_decision
    - update `<context>` for durable decisions, constraints, or landmines
    - update or remove resolved `<decide>` items
-   - leave board traceability without duplicating full task text
 
 8. Report briefly:
-   - proposals changed
+   - proposals changed or removed
    - decisions added/resolved
    - tasks promoted to `<next>`
    - items moved to backlog and backlog mode
    - context facts updated
    - what `/handoff-pickup` should do next
-</workflow>
+   </workflow>
 
 <parallel_planning_patterns>
-Intra-lab only. Spawn subagents **only when the user explicitly asks** this skill to bring in multiple viewpoints from within the current lab (e.g. "have a risk reviewer and a UX reviewer weigh in"). Default behavior is one-agent-one-turn per invocation.
+Intra-lab only. Spawn subagents **only when the user explicitly asks** this skill to bring in multiple viewpoints from within the current lab (e.g. "have a risk reviewer and a UX reviewer weigh in"). Default behavior is one agent speaking once per admitted proposal in an invocation.
 
 This is distinct from cross-lab turn-taking, which is always human-routed between CLIs — subagents of the current lab never speak as other labs.
 
 When subagents are explicitly requested:
 - possible roles: implementation complexity, UX/product consequences, performance/architecture risk, challenge / failure modes, task-packet drafter
 - subagents return analysis; main agent edits `handoff.xml`
-- merged output becomes a single `<entry>` attributed `by="<current-agent>"` summarizing the subagents' findings — not multiple entries faking cross-lab participation
+- merged output becomes a single proposal-local `<entry>` attributed `by="<current-agent>"` summarizing the subagents' findings — not multiple entries faking cross-lab participation
 - keep write ownership with the main agent
 </parallel_planning_patterns>
 
 <templates>
-Proposal:
+Proposal with local discussion:
 
 ```xml
 <proposal id="P1" status="proposed" next_turn="claude">
@@ -335,183 +320,121 @@ Proposal:
     Should dealer images use object-fit contain or cover on mobile?
   </open_questions>
   <details_ref>`docs/planning/detail-page-images.md`</details_ref>
+  <discussion>
+    <entry by="codex" date="2026-04-24" turn="1">
+      Prefer a CSS-only treatment first because current constraints forbid
+      inline JS, inline styles, new build tooling, and image proxying. The main
+      unresolved design choice is whether preserving the full dealer image
+      matters more than filling the frame consistently on mobile.
+    </entry>
+  </discussion>
 </proposal>
 ```
 
 Discussion turn-taking examples:
 
 ```xml
-<entry proposal="P1" by="codex" date="2026-04-24" turn="1">
-  Prefer a CSS-only treatment first because current constraints forbid inline
-  JS, inline styles, new build tooling, and image proxying. The main unresolved
-  design choice is whether preserving the full dealer image matters more than
-  filling the frame consistently on mobile.
-</entry>
+<proposal id="P1" status="needs_decision" next_turn="tom">
+  ...
+  <discussion>
+    <entry by="codex" date="2026-04-24" turn="1">
+      Prefer a CSS-only treatment first because current constraints forbid
+      inline JS, inline styles, new build tooling, and image proxying.
+    </entry>
 
-<entry proposal="P1" by="claude" date="2026-04-24" turn="2">
-  I disagree with choosing cover by default. Dealer photos often include the
-  whole car against a white background, and cropping can remove important
-  visual information. I would use contain for the primary image, then improve
-  the surrounding frame so whitespace looks intentional rather than broken.
-</entry>
+    <entry by="claude" date="2026-04-24" turn="2">
+      I disagree with choosing cover by default. Dealer photos often include
+      the whole car against a white background, and cropping can remove
+      important visual information.
+    </entry>
 
-<entry proposal="P1" by="gemini" date="2026-04-24" turn="3">
-  Implementation risk is low if this stays CSS-only. The main test risk is
-  layout regression on narrow screens. Before promotion, the task packet should
-  require checking at least one mobile viewport and one desktop viewport.
-</entry>
+    <entry by="gemini" date="2026-04-24" turn="3">
+      Implementation risk is low if this stays CSS-only. The main test risk is
+      layout regression on narrow screens.
+    </entry>
 
-<entry proposal="P1" by="codex" date="2026-04-24" turn="4">
-  Convergence: contain-first is safer for dealer images, and the implementation
-  can still make the frame feel deliberate. Remaining decision for Tom: accept
-  contain-first now, or require screenshot review before promotion to next.
-</entry>
+    <entry by="codex" date="2026-04-24" turn="4">
+      Convergence: contain-first is safer for dealer images. Remaining decision
+      for Tom: accept contain-first now, or require screenshot review before
+      promotion to next.
+    </entry>
+  </discussion>
+</proposal>
 ```
 
 Challenge / response example:
 
 ```xml
-<entry proposal="P2" by="codex" date="2026-04-24" turn="1">
-  Proposal: add a grid mode after detail-page polish. It would improve browsing
-  for visual comparison but touches index layout, card density, and responsive
-  behavior, so it should not be mixed into the detail-page task.
-</entry>
+<proposal id="P2" status="proposed" next_turn="tom">
+  ...
+  <discussion>
+    <entry by="codex" date="2026-04-24" turn="1">
+      Proposal: add a grid mode after detail-page polish. It would improve
+      browsing for visual comparison but touches index layout, card density,
+      and responsive behavior.
+    </entry>
 
-<entry proposal="P2" by="claude" date="2026-04-24" turn="2">
-  Challenge: grid mode may require pagination and filters to feel useful. If
-  implemented first, it could create throwaway layout work. I recommend moving
-  this to backlog parking_lot until index search priorities are decided.
-</entry>
+    <entry by="claude" date="2026-04-24" turn="2">
+      Challenge: grid mode may require pagination and filters to feel useful.
+      If implemented first, it could create throwaway layout work.
+    </entry>
 
-<entry proposal="P2" by="tom" date="2026-04-24" turn="3">
-  Decision: accepted as future work only. Do not put it in next yet.
-</entry>
+    <entry by="tom" date="2026-04-24" turn="3">
+      Decision: accepted as future work only. Do not put it in next yet.
+    </entry>
+  </discussion>
+</proposal>
 ```
 
 External detail reference example:
 
 ```xml
-<entry proposal="P3" by="codex" date="2026-04-24" turn="1">
-  I wrote the long comparison in `docs/planning/search-ux-options.md`.
-  Summary: filters should come before grid mode because they change the data
-  contract and determine which layout states need support. Board status should
-  track the decision here; the markdown file is supporting evidence only.
-</entry>
+<proposal id="P3" status="proposed" next_turn="tom">
+  ...
+  <details_ref>`docs/planning/search-ux-options.md`</details_ref>
+  <discussion>
+    <entry by="codex" date="2026-04-24" turn="1">
+      I wrote the long comparison in `docs/planning/search-ux-options.md`.
+      Summary: filters should come before grid mode because they change the
+      data contract and determine which layout states need support.
+    </entry>
+  </discussion>
+</proposal>
 ```
 
 Long-form multi-agent review example:
 
 ```xml
-<entry proposal="P4" by="codex" date="2026-04-24" turn="1">
-  I reviewed the proposed "rate limit car detail pages" idea against the
-  current Rails surface. The relevant entry point is
-  `app/controllers/cars_controller.rb`, especially the `show` action and the
-  VIN extraction path in `app/models/car.rb`. The current route shape in
-  `config/routes.rb` makes `/cars/:id` public and stable, so rate limiting
-  needs to protect detail-page enumeration without breaking normal browsing or
-  canonical redirects.
+<proposal id="P4" status="needs_decision" next_turn="tom">
+  ...
+  <discussion>
+    <entry by="codex" date="2026-04-24" turn="1">
+      I reviewed the proposed "rate limit car detail pages" idea against the
+      current Rails surface. My recommendation is not to add app-specific
+      throttling code directly in `CarsController#show`; prefer one
+      request-level mechanism.
+    </entry>
 
-  My recommendation is not to add app-specific throttling code directly in
-  `CarsController#show`. That would mix request policy into the controller and
-  make redirects, 404s, and successful detail views diverge. Prefer one
-  request-level mechanism, ideally Rack/Rails middleware or an existing
-  framework hook if the app already has one. The important behavior is to count
-  all `/cars/*` attempts, including malformed VINs and stale slugs, because
-  enumeration pressure does not care whether the VIN exists.
+    <entry by="claude" date="2026-04-24" turn="2">
+      I mostly agree, but I want to sharpen the failure mode. The risky part is
+      the full set of cheap negative lookups: malformed IDs, valid-looking
+      nonexistent VINs, stale slug redirects, and lowercase variants.
+    </entry>
 
-  Arguments for doing it now:
-  1. VIN-backed URLs are public and predictable.
-  2. The show action deliberately distinguishes visible cars from missing cars,
-     which is correct product behavior but still gives attackers a cheap route
-     to hammer.
-  3. The controller has focused tests already, so adding request-level behavior
-     can be covered with a small integration test.
+    <entry by="gemini" date="2026-04-24" turn="3">
+      Performance perspective: split the eventual implementation into
+      route/input hardening and request throttling. I would not put this in
+      `agent_pool` while the deployment layer is unknown.
+    </entry>
 
-  Arguments against doing it now:
-  1. There is no evidence yet of abusive traffic.
-  2. Adding a dependency or cache-backed limiter may create deployment work
-     larger than the current detail-page polish.
-  3. If the project does not already have shared request throttling, this may
-     deserve a broader policy decision rather than a one-route patch.
-
-  Suggested decision: put this in backlog parking_lot unless Tom wants a
-  security-hardening slice now. If promoted, the task packet should require
-  checking existing middleware/config first and should forbid controller-local
-  counters unless no better project pattern exists.
-</entry>
-
-<entry proposal="P4" by="claude" date="2026-04-24" turn="2">
-  I mostly agree, but I want to sharpen the failure mode. The risky part is not
-  just successful `/cars/:slug-vin` requests. It is the full set of cheap
-  negative lookups: malformed IDs, valid-looking nonexistent VINs, stale slug
-  redirects, and lowercase variants. If rate limiting is only applied after
-  `Car.visible.find_by!`, attackers can still force database work before the
-  limiter matters.
-
-  Files I would inspect before implementation:
-  - `config/application.rb` and environment configs for existing middleware.
-  - `Gemfile` for Rack::Attack or similar dependencies.
-  - `config/initializers/*` for request policy already in place.
-  - `test/controllers/cars_controller_test.rb` for redirect and bad-route
-    behavior that must keep passing.
-
-  Best-practice angle: rate limiting should sit as close to the request edge as
-  this app can reasonably support. If there is a reverse proxy in production,
-  that may be the right layer. If not, Rack middleware is better than a
-  controller before_action because it can count requests before route/controller
-  work and keeps policy centralized.
-
-  I would not promote this directly to next yet because we are missing an
-  environment fact: where should throttling live in this deployment? That is a
-  context/decision item, not just an implementation detail. I recommend adding
-  a `<decide>` question: "Should `/cars/*` rate limiting be handled in app
-  middleware, production proxy, or deferred?" Once answered, this becomes a
-  precise task.
-</entry>
-
-<entry proposal="P4" by="gemini" date="2026-04-24" turn="3">
-  Performance perspective: the detail-page path currently does a VIN parse,
-  visible scope lookup, and eager loads brand/model for successful records.
-  That is cheap under normal use, but negative traffic can still hit routing,
-  controller, and database paths repeatedly. The strongest lightweight defense
-  is to reject invalid shapes early and rate-limit valid-looking attempts by IP
-  and path family.
-
-  I would split the eventual implementation into two independent checks:
-  1. Route/input hardening: make sure malformed paths are rejected before DB
-     lookup wherever possible. This is partly already covered by route
-     constraints and `Car.vin_from_param`.
-  2. Request throttling: cap repeated `/cars/*` requests regardless of whether
-     they return 200, 301, or 404.
-
-  Testing recommendation:
-  - Keep existing canonical redirect tests unchanged.
-  - Add one limiter test for repeated canonical detail requests.
-  - Add one limiter test for repeated malformed or nonexistent VIN attempts.
-  - Do not assert exact response copy unless the project already standardizes
-    rate-limit responses.
-
-  My conclusion differs slightly from Claude's: if the deployment layer is
-  unknown, an app-level backlog item can still be written, but it should be
-  marked `blocked` or `needs_decision` on deployment policy. I would not put it
-  in `agent_pool`, because autonomous agents cannot safely pick the right layer
-  without that missing context.
-</entry>
-
-<entry proposal="P4" by="codex" date="2026-04-24" turn="4">
-  Synthesis: all reviewers agree that controller-local throttling is the wrong
-  default and that the missing deployment-layer decision blocks implementation.
-  The useful output from this thread is a decision item, not a next task.
-
-  Proposed board outcome:
-  - Mark P4 as `needs_decision`.
-  - Add a `<decide>` item asking where `/cars/*` throttling should live.
-  - If Tom chooses app-level middleware, promote a focused next task that first
-    inspects existing middleware/config and then implements a centralized
-    limiter with request tests.
-  - If Tom chooses proxy-level throttling, move the app code task to backlog or
-    manual/deployment notes instead of changing Rails code.
-</entry>
+    <entry by="codex" date="2026-04-24" turn="4">
+      Synthesis: all reviewers agree that controller-local throttling is the
+      wrong default and that the missing deployment-layer decision blocks
+      implementation. The useful output from this thread is a decision item,
+      not a next task.
+    </entry>
+  </discussion>
+</proposal>
 ```
 
 Promoted next task:
@@ -554,4 +477,6 @@ Backlog item:
 - Update `<context>` only for durable facts, not temporary discussion.
 - Preserve dissent and rejected reasoning when it prevents future re-litigation.
 - Make promoted `<next>` tasks detailed enough for `/handoff-pickup` to execute.
+- **Aim for 3 agent rounds before escalating to Tom.** One agent feeling done is not convergence — pass to the other lab first. Exception: escalate earlier only if the issue is simple and both agents have explicitly agreed. When in doubt, keep the ball in play between labs.
+- **Speak up when you spot a real problem, even out of turn.** Constraint violations, factual errors, scope drift, and decision-altering missing insights are interruption-worthy regardless of `next_turn`. Use `type="flag"` on the entry and give the turn back to its prior holder. Reflexive contrarianism or stylistic preference is not a flag — the threshold is "this will cause real harm if uncorrected now."
 </rules>
