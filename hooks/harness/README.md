@@ -17,6 +17,7 @@ people — or agents — touching the framework itself.
 harness/
 ├── gate.sh       # sourced by hook scripts; `hook_enabled NAME` predicate
 ├── toggle.sh     # launched by tmux (prefix + H); interactive flag flipper
+├── indicator.sh  # prints "H:foo,bar" badge for tmux / Claude Code statusLine
 ├── registry      # plain-text list of hooks the toggle should offer
 └── README.md     # this file
 ```
@@ -171,6 +172,55 @@ longer to read. Successes just need a glance at the confirmation line.
 
 ---
 
+## `indicator.sh`
+
+**Purpose.** Render the "this project has hooks enabled" badge for any
+status bar. One source of truth, two consumers: tmux's `status-right` and
+Claude Code's `statusLine`. Adding a new consumer (zsh prompt, neovim
+statusline, etc.) is a one-line shell-out.
+
+**Contract.**
+- **Input:** optional `PATH` (default `$PWD`) and optional format flag
+  (`--tmux` | `--ansi` | `--plain`, default `--plain`).
+- **Output:** a single line on stdout with no trailing newline, or nothing.
+- **Exit:** `0` on success (with or without output), `2` on bad format flag.
+- **Side effects:** none.
+
+**Same convention as `gate.sh`.** The indicator checks
+`<path>/.claude/hooks/` literally — no walking the directory tree. This
+matches where hooks actually fire (Claude Code invokes hooks with cwd at
+the project root) and keeps the indicator honest about "what the gate
+would see right here". The sessionizer in `~/.tmux.conf` opens every pane
+with `-c $project_root`, so `#{pane_current_path}` is the project root in
+normal use — walk-up was solving a problem we don't have. Trade-off: if
+you `cd` into a subdirectory in a terminal pane, the badge disappears.
+Acceptable; symmetric with the gate's behavior.
+
+**Format modes.**
+- `--tmux` — emits `#[fg=red]H:foo,bar#[default]`. tmux's `#()`
+  interpolation re-parses output, so the format directives apply.
+- `--ansi` — emits `\e[31mH:foo,bar\e[0m` *as literal backslash-e text*,
+  not actual ESC bytes. Designed to be captured into a shell variable and
+  rendered later via `printf '%b'`. Matches Claude Code's statusLine
+  rendering, which assembles a string with literal escapes and prints it
+  with `printf '%b'` at the end.
+- `--plain` — emits `H:foo,bar`. For consumers that handle styling
+  separately or don't want any.
+
+**Why three formats and not just one?** Each consumer has different
+rendering pipelines. A unified format (e.g. only ANSI) would force every
+consumer to either re-parse and re-emit, or accept the wrong escapes.
+Three modes keeps each call site a one-liner.
+
+**Why no caching?** The script does at most a few stat calls and a glob.
+Running it once per `status-interval` (2s in tmux, 3s in Claude Code) is
+microseconds. Caching would add complexity for no gain.
+
+**Output discipline.** No trailing newline. Important for tmux: a newline
+in `#()` output corrupts the format string. Test before changing.
+
+---
+
 ## End-to-end data flow
 
 A toggle-then-hook cycle:
@@ -207,9 +257,13 @@ its own script, a single registry line, and a single `settings.json` entry.
 - **Different UI** — any tool can write/remove `.claude/hooks/<name>.enabled`
   files. CLI wrapper, shell alias, script hotkey — all valid. `toggle.sh` is
   just one implementation.
-- **Statusline format** — the indicator logic is in the `statusLine.command`
-  in `~/.claude/settings.json`. It scans `$current_dir/.claude/hooks/*.enabled`
-  and joins basenames. Changing the rendering is a string edit there.
+- **New status-bar consumer** — call `indicator.sh <path> --plain` (or
+  `--ansi`/`--tmux`) and embed the output. Don't reimplement the scan;
+  every new consumer is a one-liner shell-out.
+- **Indicator format** — edit the `case "$fmt"` block in `indicator.sh`.
+  Both tmux's `status-right` (in `~/.tmux.conf`) and Claude Code's
+  `statusLine.command` (in `~/.claude/settings.json`) call it, so format
+  changes propagate to both.
 
 ## Invariants (don't break these)
 
@@ -223,6 +277,9 @@ its own script, a single registry line, and a single `settings.json` entry.
    writes. No agent invocation. No network.
 5. Relative paths are resolved from cwd — never `cd` inside scripts, never
    assume a specific project layout beyond `.claude/`.
+6. `indicator.sh` is read-only and side-effect free. Status bars run it
+   every 2-3 seconds; never add writes, network, or anything that could
+   block. No trailing newline in its output.
 
 ## Testing the harness manually
 
@@ -244,6 +301,16 @@ done < ~/.claude/hooks/harness/registry
 
 # toggle end-to-end (opens fzf — run in a real terminal, not here)
 ~/.claude/hooks/harness/toggle.sh
+
+# indicator (all three formats, against a synthetic project)
+TMP=$(mktemp -d); mkdir -p "$TMP/proj/.claude/hooks"
+: > "$TMP/proj/.claude/hooks/double-check.enabled"
+~/.claude/hooks/harness/indicator.sh "$TMP/proj"          --plain   # H:double-check
+~/.claude/hooks/harness/indicator.sh "$TMP/proj"          --ansi    # \e[31m...
+~/.claude/hooks/harness/indicator.sh "$TMP/proj"          --tmux    # #[fg=red]...
+~/.claude/hooks/harness/indicator.sh "$TMP/proj/sub/dir"  --plain   # empty (no walk-up)
+~/.claude/hooks/harness/indicator.sh "$TMP"               --plain   # empty (no .claude/hooks)
+rm -rf "$TMP"
 ```
 
 ## Known quirks
