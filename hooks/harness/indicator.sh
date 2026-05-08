@@ -11,9 +11,9 @@
 # matching where hooks actually fire (Claude Code invokes hooks with cwd
 # at the project root). The sessionizer in ~/.tmux.conf opens every pane
 # with `-c $project_root`, so `#{pane_current_path}` is the project root
-# in normal use — no need to walk the tree. Trade-off: if you `cd` into a
-# subdirectory in a terminal pane, the badge disappears. Acceptable; the
-# badge is honest about "what the gate would see right here".
+# in normal use. Trade-off: if you `cd` into a subdirectory in a terminal
+# pane, the badge disappears. Acceptable; the badge is honest about "what
+# the gate would see right here".
 #
 # Formats:
 #   --tmux   tmux format string: `#[fg=red]H:foo,bar#[default]`

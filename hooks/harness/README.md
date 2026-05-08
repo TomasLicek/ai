@@ -192,9 +192,8 @@ matches where hooks actually fire (Claude Code invokes hooks with cwd at
 the project root) and keeps the indicator honest about "what the gate
 would see right here". The sessionizer in `~/.tmux.conf` opens every pane
 with `-c $project_root`, so `#{pane_current_path}` is the project root in
-normal use — walk-up was solving a problem we don't have. Trade-off: if
-you `cd` into a subdirectory in a terminal pane, the badge disappears.
-Acceptable; symmetric with the gate's behavior.
+normal use. Trade-off: if you `cd` into a subdirectory in a terminal pane,
+the badge disappears. Acceptable; symmetric with the gate's behavior.
 
 **Format modes.**
 - `--tmux` — emits `#[fg=red]H:foo,bar#[default]`. tmux's `#()`
