@@ -11,7 +11,7 @@ if command -v jq >/dev/null 2>&1; then
   [[ "$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null)" == "true" ]] && exit 0
 fi
 
-hook_enabled cursor-review || exit 0
+hook_enabled codex-review || exit 0
 
 git rev-parse --git-dir &>/dev/null || exit 0
 
@@ -30,13 +30,13 @@ else
   MODE="conversation"
 fi
 
-if [[ -e .claude/cursor-review && ! -d .claude/cursor-review ]]; then exit 0; fi
-mkdir -p .claude/cursor-review
+if [[ -e .claude/codex-review && ! -d .claude/codex-review ]]; then exit 0; fi
+mkdir -p .claude/codex-review
 
 # Clean up `.tmp.*` scratch files on any exit path (success, error, signal).
 # Known success/failure branches handle their own tmp explicitly; this catches unexpected deaths
 # (Ctrl-C, OOM, set -e firing on unrelated commands) so we don't orphan half-written files.
-trap 'rm -f .claude/cursor-review/*.tmp.* 2>/dev/null || true' EXIT
+trap 'rm -f .claude/codex-review/*.tmp.* 2>/dev/null || true' EXIT
 
 # Extract session conversation (used as context in code mode, as the review target in conversation mode).
 # Prefer the exact transcript_path from the Stop hook payload — mtime-based discovery is racy when
@@ -50,7 +50,7 @@ if [[ -z "$JSONL" || ! -f "$JSONL" ]]; then
   fi
 fi
 if [[ -n "$JSONL" && -f "$JSONL" ]]; then
-  TMP_CONV=".claude/cursor-review/conversation.txt.tmp.$$"
+  TMP_CONV=".claude/codex-review/conversation.txt.tmp.$$"
   jq -r 'select(.type == "user" or .type == "assistant") |
     if .type == "user" and (.message.content | type == "string") then
       select(.message.content | test("<local-command-caveat>|<command-name>") | not) |
@@ -58,7 +58,7 @@ if [[ -n "$JSONL" && -f "$JSONL" ]]; then
     elif .type == "assistant" then
       (.message.content[] | select(.type == "text") | "<agent>\n" + .text + "\n</agent>")
     else empty end' "$JSONL" > "$TMP_CONV" 2>/dev/null \
-    && mv -f "$TMP_CONV" .claude/cursor-review/conversation.txt \
+    && mv -f "$TMP_CONV" .claude/codex-review/conversation.txt \
     || rm -f "$TMP_CONV"
 fi
 
@@ -66,7 +66,7 @@ fi
 # Code mode: status + tracked diff + content-hashes of untracked files (so editing an untracked
 #            file without `git add` still changes the hash).
 # Conversation mode: full transcript content.
-HASH_FILE=.claude/cursor-review/last_hash
+HASH_FILE=.claude/codex-review/last_hash
 if [[ "$MODE" == "code" ]]; then
   UNTRACKED_HASHES=""
   while IFS= read -r -d '' f; do
@@ -79,7 +79,7 @@ if [[ "$MODE" == "code" ]]; then
   done < <(git ls-files --others --exclude-standard -z 2>/dev/null)
   HASH_INPUT="${STATUS}$(git diff HEAD 2>/dev/null || true)${UNTRACKED_HASHES}"
 else
-  HASH_INPUT=$(cat .claude/cursor-review/conversation.txt 2>/dev/null || true)
+  HASH_INPUT=$(cat .claude/codex-review/conversation.txt 2>/dev/null || true)
 fi
 [[ -n "$HASH_INPUT" ]] || exit 0
 HASH=$(printf '%s' "$HASH_INPUT" | shasum -a 1 | awk '{print $1}')
@@ -89,65 +89,51 @@ fi
 
 # In code mode, write the changed-files manifest (porcelain format includes untracked as `??`).
 if [[ "$MODE" == "code" ]]; then
-  TMP_FILES=".claude/cursor-review/changed_files.txt.tmp.$$"
-  printf '%s\n' "$STATUS" > "$TMP_FILES" && mv -f "$TMP_FILES" .claude/cursor-review/changed_files.txt
+  TMP_FILES=".claude/codex-review/changed_files.txt.tmp.$$"
+  printf '%s\n' "$STATUS" > "$TMP_FILES" && mv -f "$TMP_FILES" .claude/codex-review/changed_files.txt
 fi
 
-# Cursor CLI must be on PATH; silent no-op otherwise.
-command -v agent >/dev/null 2>&1 || { echo "cursor-review: 'agent' CLI not found, skipping" >&2; exit 0; }
+# Codex CLI must be on PATH; silent no-op otherwise.
+command -v codex >/dev/null 2>&1 || { echo "codex-review: 'codex' CLI not found, skipping" >&2; exit 0; }
 
 if [[ "$MODE" == "code" ]]; then
   PROMPT=$(cat <<'PROMPT_EOF'
-Scope: `.claude/cursor-review/changed_files.txt` in the current working directory lists the files changed vs `HEAD` in `git status --porcelain -uall` format (e.g. ` M` modified, `A ` added staged, `??` untracked, `R ` renamed, `D ` deleted, etc.). These are the files to review.
+Run /double-check to review the work of other agents. Do not assume anything, except everything.
 
-Method:
-- Read each listed file in full (skip deletions).
-- Roam freely — read callers, callees, imports, tests, configs, whatever you need to judge the change in context. Narrow views mis-judge.
-- Run `git diff -- <path>` yourself if you want to pinpoint what changed in a specific tracked file. Note: untracked files (`??`) are NOT in `git diff HEAD` — read those directly from disk.
-- `.claude/cursor-review/conversation.txt` (if present) holds the session transcript in <user>/<agent> XML tags as additional context. Ignore inferred author intent — review the code as it stands.
+Inputs:
+- `.claude/codex-review/conversation.txt` — transcript of session conversation in <user>/<agent> XML tags
+- `.claude/codex-review/changed_files.txt` — changed files in `git status --porcelain` format. Untracked files appear as `??`.
+- `git diff HEAD` — full diff of tracked changes (does NOT include untracked files; read those directly from disk)
 
-Classify each finding:
-- HIGH: logic bugs, security issues, data loss, breakage
-- MEDIUM: correctness edge cases, concurrency, error handling
-- LOW: style, naming, minor nits
-
-Output format — emit your review as plain text to stdout ONLY. Do not write any files. Do not emit preambles, code fences, or commentary.
-- First line sentinel: `STATUS: CLEAN` (no issues) OR `STATUS: ISSUES: N HIGH, M MEDIUM, K LOW`.
-- Remaining lines: detailed break-down what's wrong, prefixed with severity, `file:line` where possible.
-- Propose fixes.
+Output your findings to stdout:
+- First line: `STATUS: CLEAN` or `STATUS: ISSUES: N HIGH, M MEDIUM, K LOW`
+- Each finding: severity (HIGH/MEDIUM/LOW), [file:line], description, proposed fix. Be very detailed here. Explain reasoning, angles, what leads you to that.
 PROMPT_EOF
 )
 else
   PROMPT=$(cat <<'PROMPT_EOF'
-Review this session's CONVERSATION as-stated. There are NO code changes in this session — the working tree is clean. Old commits already in the branch are NOT in scope; only the conversation that just happened.
-
-Review the artifact, not the inferred intent. Do NOT try to guess what the user "really meant" or rationalize what the agent "probably knew" — review what was actually said. Look for: reasoning errors, skipped considerations, wrong assumptions, unverified claims, hallucinated facts, anything stated confidently but wrong.
+Review this session's CONVERSATION for reasoning errors, skipped considerations, wrong assumptions, unverified claims, hallucinated facts, or anything the agent presented confidently but got wrong. There are NO code changes in this session — the working tree is clean. Old commits already in the branch are NOT in scope; only the conversation that just happened.
 
 Input:
-- `.claude/cursor-review/conversation.txt` — full transcript in <user>/<agent> XML tags
+- `.claude/codex-review/conversation.txt` — full transcript in <user>/<agent> XML tags
 
-Classify each finding:
-- HIGH: factually wrong, decision-altering errors, hallucinations presented as fact
-- MEDIUM: unverified claims, skipped considerations, shaky reasoning
-- LOW: minor imprecision, style, hedging that should have been firmer
-
-Output format — emit your review as plain text to stdout ONLY. Do not write any files. Do not emit preambles, code fences, or commentary.
-- First line sentinel: `STATUS: CLEAN` (no issues) OR `STATUS: ISSUES: N HIGH, M MEDIUM, K LOW`.
+Output your findings to stdout:
+- First line: `STATUS: CLEAN` or `STATUS: ISSUES: N HIGH, M MEDIUM, K LOW`
 - Each finding: severity (HIGH/MEDIUM/LOW), who said it (user/agent) and roughly when in the conversation, the claim or decision, why it's wrong or risky, what the right answer is. Be detailed — explain your reasoning.
 PROMPT_EOF
 )
 fi
 
-TMP_FINDINGS=".claude/cursor-review/findings.md.tmp.$$"
-if agent -p --output-format text --model "gpt-5.4" "$PROMPT" >"$TMP_FINDINGS" 2>/dev/null; then
-  mv -f "$TMP_FINDINGS" .claude/cursor-review/findings.md
+TMP_FINDINGS=".claude/codex-review/findings.md.tmp.$$"
+if  codex exec --model gpt-5.5 -c 'model_reasoning_effort="high"' "$PROMPT" >"$TMP_FINDINGS" 2>/dev/null; then
+  mv -f "$TMP_FINDINGS" .claude/codex-review/findings.md
 else
   rm -f "$TMP_FINDINGS"
-  echo "cursor-review: agent invocation failed" >&2
+  echo "codex-review: codex invocation failed" >&2
   exit 0
 fi
 
-# Persist hash ONLY after the review actually succeeded — a failed agent run must not
+# Persist hash ONLY after the review actually succeeded — a failed codex run must not
 # dedup-skip the next Stop with the same input.
 TMP_HASH="${HASH_FILE}.tmp.$$"
 printf '%s' "$HASH" > "$TMP_HASH" && mv -f "$TMP_HASH" "$HASH_FILE"
@@ -159,13 +145,12 @@ else
 fi
 
 cat >&2 <<EOF
-<cursor-review>
-Cross-agent review ran on this session's ${KIND_TEXT} with full file context. Findings are in \`.claude/cursor-review/findings.md\`.
+<session-review>
+Independent review of this session's ${KIND_TEXT} is in \`.claude/codex-review/findings.md\`.
 First line is the sentinel (\`STATUS: CLEAN\` or \`STATUS: ISSUES: N HIGH, M MEDIUM, K LOW\`).
 
-Output summary + file path, then stop. Do NOT auto-fix. And please be very vare of the findings - think whether the findings
-are appropriate and relevant. If you think the review is not right, say so.
-</cursor-review>
+Read the findings and summarize. Do NOT auto-fix. Be critical of the findings — if a finding looks wrong or irrelevant, say so.
+</session-review>
 EOF
 
 exit 2
