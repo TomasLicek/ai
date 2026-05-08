@@ -3,6 +3,7 @@ name: double-check
 description: Four-eyes principle — verify we didn't screw up this session
 effort: xhigh
 allowed-tools: Read, Grep, Glob, Bash, Task
+disable-model-invocation: false
 ---
 
 # Double-Check

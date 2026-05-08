@@ -1,5 +1,6 @@
 ---
 name: commit
+disable-model-invocation: true
 description: Commit staged and unstaged changes with a clean, why-focused message. Use when the user says "commit", "save this", "commit what we did", or wants to wrap up a coding session.
 model: haiku
 ---
