@@ -98,41 +98,27 @@ command -v agent >/dev/null 2>&1 || { echo "cursor-review: 'agent' CLI not found
 
 if [[ "$MODE" == "code" ]]; then
   PROMPT=$(cat <<'PROMPT_EOF'
-Scope: `.claude/cursor-review/changed_files.txt` in the current working directory lists the files changed vs `HEAD` in `git status --porcelain -uall` format (e.g. ` M` modified, `A ` added staged, `??` untracked, `R ` renamed, `D ` deleted, etc.). These are the files to review.
+Run /double-check to review the work of other agents. Treat nothing as given. Question every decision, every line, every assumption made by the previous agent.
 
-Method:
-- Read each listed file in full (skip deletions).
-- Roam freely — read callers, callees, imports, tests, configs, whatever you need to judge the change in context. Narrow views mis-judge.
-- Run `git diff -- <path>` yourself if you want to pinpoint what changed in a specific tracked file. Note: untracked files (`??`) are NOT in `git diff HEAD` — read those directly from disk.
-- `.claude/cursor-review/conversation.txt` (if present) holds the session transcript in <user>/<agent> XML tags as additional context. Ignore inferred author intent — review the code as it stands.
+Inputs:
+- `.claude/cursor-review/conversation.txt` — transcript of session conversation in <user>/<agent> XML tags
+- `.claude/cursor-review/changed_files.txt` — changed files in `git status --porcelain` format. Untracked files appear as `??`.
+- `git diff HEAD` — full diff of tracked changes (does NOT include untracked files; read those directly from disk)
 
-Classify each finding:
-- HIGH: logic bugs, security issues, data loss, breakage
-- MEDIUM: correctness edge cases, concurrency, error handling
-- LOW: style, naming, minor nits
-
-Output format — emit your review as plain text to stdout ONLY. Do not write any files. Do not emit preambles, code fences, or commentary.
-- First line sentinel: `STATUS: CLEAN` (no issues) OR `STATUS: ISSUES: N HIGH, M MEDIUM, K LOW`.
-- Remaining lines: detailed break-down what's wrong, prefixed with severity, `file:line` where possible.
-- Propose fixes.
+Output your findings to stdout:
+- First line: `STATUS: CLEAN` or `STATUS: ISSUES: N HIGH, M MEDIUM, K LOW`
+- Each finding: severity (HIGH/MEDIUM/LOW), [file:line], description, proposed fix. Be very detailed here. Explain reasoning, angles, what leads you to that.
 PROMPT_EOF
 )
 else
   PROMPT=$(cat <<'PROMPT_EOF'
-Review this session's CONVERSATION as-stated. There are NO code changes in this session — the working tree is clean. Old commits already in the branch are NOT in scope; only the conversation that just happened.
-
-Review the artifact, not the inferred intent. Do NOT try to guess what the user "really meant" or rationalize what the agent "probably knew" — review what was actually said. Look for: reasoning errors, skipped considerations, wrong assumptions, unverified claims, hallucinated facts, anything stated confidently but wrong.
+Review this session's CONVERSATION for reasoning errors, skipped considerations, wrong assumptions, unverified claims, hallucinated facts, or anything the agent presented confidently but got wrong. There are NO code changes in this session — the working tree is clean. Old commits already in the branch are NOT in scope; only the conversation that just happened.
 
 Input:
 - `.claude/cursor-review/conversation.txt` — full transcript in <user>/<agent> XML tags
 
-Classify each finding:
-- HIGH: factually wrong, decision-altering errors, hallucinations presented as fact
-- MEDIUM: unverified claims, skipped considerations, shaky reasoning
-- LOW: minor imprecision, style, hedging that should have been firmer
-
-Output format — emit your review as plain text to stdout ONLY. Do not write any files. Do not emit preambles, code fences, or commentary.
-- First line sentinel: `STATUS: CLEAN` (no issues) OR `STATUS: ISSUES: N HIGH, M MEDIUM, K LOW`.
+Output your findings to stdout:
+- First line: `STATUS: CLEAN` or `STATUS: ISSUES: N HIGH, M MEDIUM, K LOW`
 - Each finding: severity (HIGH/MEDIUM/LOW), who said it (user/agent) and roughly when in the conversation, the claim or decision, why it's wrong or risky, what the right answer is. Be detailed — explain your reasoning.
 PROMPT_EOF
 )
@@ -159,13 +145,12 @@ else
 fi
 
 cat >&2 <<EOF
-<cursor-review>
-Cross-agent review ran on this session's ${KIND_TEXT} with full file context. Findings are in \`.claude/cursor-review/findings.md\`.
+<session-review>
+Independent review of this session's ${KIND_TEXT} is in \`.claude/cursor-review/findings.md\`.
 First line is the sentinel (\`STATUS: CLEAN\` or \`STATUS: ISSUES: N HIGH, M MEDIUM, K LOW\`).
 
-Output summary + file path, then stop. Do NOT auto-fix. And please be very vare of the findings - think whether the findings
-are appropriate and relevant. If you think the review is not right, say so.
-</cursor-review>
+Read the findings and summarize. Do NOT auto-fix. Be critical of the findings — if a finding looks wrong or irrelevant, say so.
+</session-review>
 EOF
 
 exit 2

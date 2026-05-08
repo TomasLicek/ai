@@ -98,7 +98,7 @@ command -v codex >/dev/null 2>&1 || { echo "codex-review: 'codex' CLI not found,
 
 if [[ "$MODE" == "code" ]]; then
   PROMPT=$(cat <<'PROMPT_EOF'
-Run /double-check to review the work of other agents. Do not assume anything, except everything.
+Run /double-check to review the work of other agents. Treat nothing as given. Question every decision, every line, every assumption made by the previous agent.
 
 Inputs:
 - `.claude/codex-review/conversation.txt` — transcript of session conversation in <user>/<agent> XML tags
