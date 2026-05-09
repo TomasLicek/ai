@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Hooks toggle popup. Launched from tmux (Prefix+H) in project cwd.
-# Reads the hook registry, shows current state, toggles selected hooks.
+# Select hooks to flip their state. Enter = apply, Esc = cancel.
 
 set -euo pipefail
 
@@ -21,8 +21,6 @@ if [[ ! -f "$REGISTRY" ]]; then
   exit 1
 fi
 
-trap 'sleep 1.8' EXIT
-
 mkdir -p "$HOOKS_DIR"
 
 # Load registry into parallel arrays (bash 3.2 compatible).
@@ -36,36 +34,48 @@ done < "$REGISTRY"
 
 if (( ${#NAMES[@]} == 0 )); then
   echo "no hooks in registry"
+  sleep 1
   exit 0
 fi
 
+project=$(basename "$PWD")
+
+# Build display: ON/off prefix makes current state immediately visible.
 build_list() {
   for i in "${!NAMES[@]}"; do
     name="${NAMES[$i]}"
     desc="${DESCS[$i]}"
     if [[ -f "$HOOKS_DIR/${name}.enabled" ]]; then
-      printf '[x] %-14s  %s\n' "$name" "$desc"
+      printf 'ON   %-14s  %s\n' "$name" "$desc"
     else
-      printf '[ ] %-14s  %s\n' "$name" "$desc"
+      printf 'off  %-14s  %s\n' "$name" "$desc"
     fi
   done
 }
 
-project=$(basename "$PWD")
-
+# Toggle model: selected items get their state FLIPPED on Enter.
+# Avoids fzf --multi Enter quirk (outputs cursor item when nothing is marked).
 SELECTED=$(build_list | fzf \
   --multi \
   --height=100% \
   --reverse \
-  --prompt="Toggle > " \
-  --header="Hooks in $project — Tab: select, Enter: toggle, Esc: cancel" \
+  --no-sort \
+  --marker='▶' \
+  --prompt="$project  " \
+  --header="Space: mark  Enter: toggle marked  Esc: cancel" \
+  --bind "space:toggle" \
+  --color="marker:green,pointer:green" \
 ) || exit 0
 
 [[ -z "$SELECTED" ]] && exit 0
 
+changed=0
 while IFS= read -r line; do
-  rest="${line#???\ }"
-  name="${rest%%[[:space:]]*}"
+  [[ -z "$line" ]] && continue
+  rest="${line#?????}"          # strip 5-char "ON   " or "off  " prefix
+  name="${rest%%[[:space:]]*}"  # first whitespace-delimited token = hook name
+
+  # Validate against registry.
   valid=0
   for known in "${NAMES[@]}"; do
     [[ "$known" == "$name" ]] && { valid=1; break; }
@@ -80,4 +90,10 @@ while IFS= read -r line; do
     : > "$flag"
     printf '  enabled:  %s\n' "$name"
   fi
+  changed=1
 done <<< "$SELECTED"
+
+# Brief flash so the confirmation lines are readable before popup closes.
+if [[ $changed -eq 1 ]]; then
+  sleep 0.4
+fi

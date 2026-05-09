@@ -1,3 +1,5 @@
 .DS_Store
 handoff.xml
 skills/handoff.xml
+.claude/settings.local.json
+.claude/agent-memory-local/

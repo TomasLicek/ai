@@ -77,7 +77,7 @@ name|description
 - `name` — the hook's short name. Must match the gate flag
   (`.claude/hooks/<name>.enabled`) and the registry entry used by any tooling.
   ASCII, no spaces (the parse assumes whitespace terminates the name).
-- `description` — free-form human text shown next to the `[x]`/`[ ]` marker
+- `description` — free-form human text shown next to the `ON`/`off` prefix
   in the popup. Keep it under ~60 chars so it fits the popup width.
 
 **Comments.** A line starting with `#` (optionally preceded by whitespace) is
@@ -114,6 +114,22 @@ current tmux pane's directory, which is how the script knows which project
 it's operating on. `toggle.sh` itself does no project discovery — it trusts
 cwd.
 
+**UX model: toggle selected.**
+
+The popup shows every registered hook with its current state as a prefix
+(`ON   ` or `off  `). The user marks the hooks they want to flip with Space,
+then presses Enter. Marked items get their state toggled — ON→off, off→ON.
+Unmarked items are untouched. Esc cancels with no changes.
+
+Why toggle and not "selected = enabled": fzf's `--multi` Enter behavior
+outputs the cursor item when nothing is explicitly marked (▶). A "set
+state" model (selected = what stays on) would therefore keep the cursor
+item enabled even if the user deselected everything — impossible to disable
+all hooks. Toggle semantics avoid this entirely: only explicitly marked items
+are acted on.
+
+Keybindings: Space = mark/unmark, Enter = toggle marked, Esc = cancel.
+
 **Flow.**
 
 1. `set -euo pipefail` — fail fast on unset vars, failed commands, pipeline
@@ -125,24 +141,22 @@ cwd.
    before exit keeps the popup open long enough to read the message
    (popups close as soon as the process exits).
 4. Check the registry file exists. Same sleep-before-exit pattern.
-5. Install an `EXIT` trap that sleeps 1.8s. Every subsequent exit path
-   (success, cancel, error) gets a brief pause so the terminal output is
-   readable before the popup closes.
-6. `mkdir -p .claude/hooks` — ensure the flag dir exists in the project.
+5. `mkdir -p .claude/hooks` — ensure the flag dir exists in the project.
    Safe if it already exists.
-7. Read the registry into two parallel arrays (`NAMES`, `DESCS`). Parallel
+6. Read the registry into two parallel arrays (`NAMES`, `DESCS`). Parallel
    arrays instead of an associative array because macOS ships with bash
    3.2, which lacks `declare -A`.
-8. Build the display list: `[x] name  description` for enabled hooks,
-   `[ ] name  description` for disabled. Pipe into `fzf --multi`.
-9. If the user cancels (`Esc`, or no selection), exit 0.
-10. Parse each selected line. Strip the 4-char prefix (`[x] ` or `[ ] `),
-    take the first whitespace-delimited token as the name, cross-check
-    against the registry (reject anything not known — defence against a
-    corrupted fzf output or a selection line we didn't generate).
-11. For each valid selection: if the flag exists, remove it; otherwise
-    create it. Echo the result so the user sees confirmation before the
-    popup closes.
+7. Build the display list: `ON   name  description` for enabled hooks,
+   `off  name  description` for disabled. Pipe into `fzf --multi`.
+8. If the user cancels (`Esc`) or marks nothing and accepts, exit 0
+   immediately — no delay.
+9. Parse each selected line. Strip the 5-char prefix (`ON   ` or `off  `),
+   take the first whitespace-delimited token as the name, cross-check
+   against the registry.
+10. Flip each valid selection: remove flag if present, create if absent.
+    Echo each change.
+11. If any changes were made, sleep 0.4s so the confirmation lines are
+    readable. Otherwise exit immediately.
 
 **Flag operations.** Created with `: > "$flag"` (empty file), removed with
 `rm -f "$flag"`. Never writes non-empty content — the presence of the file
@@ -154,21 +168,23 @@ in the same project is theoretically racy but in practice harmless — the
 last write wins, and the gate check is a cheap `[[ -f ]]` that tolerates
 either outcome. No lockfile needed.
 
-**Parse hardening.** The `rest="${line#???\ }"` expansion strips exactly 4
-characters (`[`, `x`/space, `]`, space) from the start of each line. This is
-deliberately coupled to `build_list`'s format string — if you change the
-prefix width in `printf '[x] %-14s  %s\n'`, update the parse too.
-`${rest%%[[:space:]]*}` then grabs everything up to the first whitespace as
-the name.
+**Parse hardening.** The `rest="${line#?????}"` expansion strips exactly 5
+characters (`ON   ` or `off  `) from the start of each line. This is
+deliberately coupled to the `printf` format strings — if you change the
+prefix width, update the parse too. `${rest%%[[:space:]]*}` then grabs
+everything up to the first whitespace as the name.
 
 **Registry cross-check.** Even though the UI only ever shows lines we
 generated, the selected-line parse falls back to a registry lookup before
 creating/removing files. This defends against two classes of bug: user
-pasting text into the fzf buffer, and future changes to `build_list` that
-might shift column positions.
+pasting text into the fzf buffer, and future changes to the format strings
+that might shift column positions.
 
-**Why `sleep 3` on error exits but `sleep 1.8` on success?** Errors need
-longer to read. Successes just need a glance at the confirmation line.
+**Why no global EXIT sleep?** The old version had `trap 'sleep 1.8' EXIT`
+which caused noticeable lag on every exit path including Esc. Now: error
+exits keep `sleep 3` (message needs to be readable), successful no-op exits
+close immediately, and successful change exits pause 0.4s to flash the
+confirmation lines.
 
 ---
 
@@ -299,6 +315,7 @@ while IFS='|' read -r n d; do
 done < ~/.claude/hooks/harness/registry
 
 # toggle end-to-end (opens fzf — run in a real terminal, not here)
+# Enabled hooks should be pre-selected (▶ marker) on open.
 ~/.claude/hooks/harness/toggle.sh
 
 # indicator (all three formats, against a synthetic project)
