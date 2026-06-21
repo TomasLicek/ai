@@ -1,0 +1,26 @@
+{
+  "skill_name": "log-bug",
+  "evals": [
+    {
+      "id": 0,
+      "name": "rich-mid-session-spot",
+      "prompt": "I'm looking at app/controllers/cars_controller.rb and the index action loads every visible car with no pagination — it does Car.visible... and renders all of them. At a few thousand cars this will blow up memory and TTFB. I don't want to fix it now, just get it into the backlog as a bug.",
+      "expected_output": "A bug-<slug>.md file with a sharp title, Problem mentioning the file + no pagination + scale risk, and a one-line bullet added under ## Bugs (before ## Decisions) in backlog.md.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "casual-note",
+      "prompt": "quick one for the backlog — when you hit Reset on the filter bar the brand checkboxes stay visually checked even though the filter actually clears. looks like reset doesn't reset the checkbox state in the dom",
+      "expected_output": "A bug file + index bullet capturing the reset/checkbox-state defect. Two-part convention followed.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "terse-one-liner",
+      "prompt": "log a bug: filmstrip swipe arrows do nothing on iOS safari, tapping them just doesn't advance the photos",
+      "expected_output": "A bug file + index bullet for the iOS Safari filmstrip arrow defect. Title/summary should be coherent despite terse input; no invented repro detail.",
+      "files": []
+    }
+  ]
+}
