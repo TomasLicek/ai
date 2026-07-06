@@ -4,7 +4,7 @@ disable-model-invocation: true
 effort: xhigh
 allowed-tools: Read, Grep, Glob, Bash
 argument-hint: <problem or symptom to investigate>
-description: Five whys until bedrock - symptoms are not causes
+description: Five whys until bedrock - symptoms are not causes. Use when a bug, failure, or recurring problem needs its underlying cause traced instead of the surface symptom patched, or when asked for a root-cause analysis or why something really keeps happening.
 ---
 
 # Root Cause Analysis

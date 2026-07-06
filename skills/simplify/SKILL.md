@@ -3,7 +3,7 @@ name: simplify
 effort: xhigh
 disable-model-invocation: false
 argument-hint: <file or code to simplify>
-description: Find what can be deleted, inlined, or made boring
+description: Find what can be deleted, inlined, or made boring. Use when code works but feels overcomplicated, bloated, or over-abstracted, or when asked to simplify, trim, declutter, or cut complexity from a file or function.
 ---
 
 # Simplify

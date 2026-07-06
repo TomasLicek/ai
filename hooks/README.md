@@ -10,9 +10,11 @@ statusline indicator. No slash commands, no agent turns to flip state.
 ├── README.md                 # this file
 ├── double-check-stop.sh      # Stop hook: invokes /double-check skill
 ├── cursor-review-stop.sh     # Stop hook: cross-agent review via `agent -p`
+├── codex-review-stop.sh      # Stop hook: cross-agent review via `codex exec`
 └── harness/                  # all framework tooling — back this up as one unit
     ├── gate.sh               # hook_enabled() helper, sourced by every hook
     ├── toggle.sh             # tmux popup (prefix + H) — reads registry, flips flags
+    ├── indicator.sh          # statusline badge (red H:<names> when hooks enabled)
     ├── registry              # one line per hook: `name|description`
     └── README.md             # internals docs (framework-maintainer facing)
 ```
@@ -22,10 +24,15 @@ Per-project state lives under `<project>/.claude/`:
 ```
 <project>/.claude/
 ├── hooks/<name>.enabled   # opt-in flag per hook (touch to enable, rm to disable)
-└── review/                # output of cursor-review (gitignore candidate)
-    ├── findings.md        # reviewer output; first line: STATUS: CLEAN|ISSUES: …
-    ├── diff.patch         # input snapshot the reviewer read
-    └── last_hash          # dedup state (skips identical consecutive diffs)
+├── cursor-review/         # output of cursor-review (gitignored globally)
+│   ├── findings.md        # reviewer output; first line: STATUS: CLEAN|ISSUES: …
+│   ├── diff.patch         # input snapshot the reviewer read
+│   └── last_hash          # dedup state (skips identical consecutive diffs)
+└── codex-review/          # output of codex-review (gitignored globally)
+    ├── findings.md        # same STATUS: sentinel convention
+    ├── conversation.txt   # extracted session transcript (input)
+    ├── changed_files.txt  # code-mode input listing
+    └── last_hash          # dedup state
 ```
 
 `double-check` keeps no state — it just tells Claude to invoke the skill.
@@ -37,8 +44,9 @@ Per-project state lives under `<project>/.claude/`:
   pause so you can read the confirmation.
 - **See what's enabled** — statusline shows a red `H:<names>` segment when any
   hook is enabled in the current project. Silent when none.
-- **Review findings** — `.claude/review/findings.md`. First line is the
-  sentinel; details follow. Open it however you want (`bat`, editor, popup).
+- **Review findings** — `.claude/cursor-review/findings.md` or
+  `.claude/codex-review/findings.md`. First line is the sentinel; details
+  follow. Open it however you want (`bat`, editor, popup).
 
 ## How a hook works
 
@@ -111,6 +119,21 @@ Example: a `lint-stop` hook that runs a linter and flags issues to Claude.
 
 4. **Opt in per project** — `prefix + H` → toggle `lint` on.
 
+### New hook checklist
+
+Every new hook touches five places. Miss one and it fails silently later:
+
+1. Register the script in `~/.claude/settings.json`.
+2. Add its gate name to `harness/registry`.
+3. Gitignore its output dir globally (`~/.config/git/ignore`) if it writes
+   transcripts or findings.
+4. Document it in this README (layout + Current hooks).
+5. Run the smoke test in `harness/README.md`.
+
+Why this list exists: three past drift bugs (a missing codex-review gitignore
+rule, this README missing codex-review entirely, and registry/settings drift)
+all came from adding a hook without a checklist.
+
 ### Naming conventions
 
 - Hook filename: `<name>-<event>.sh` (e.g. `review-stop.sh`, `lint-posttool.sh`).
@@ -131,24 +154,32 @@ Example: a `lint-stop` hook that runs a linter and flags issues to Claude.
 
 ## Current hooks
 
-- `double-check` — minimal. Asks Claude to invoke the `/double-check` skill
+- `double-check` - minimal. Asks Claude to invoke the `/double-check` skill
   before stopping, then summarize in one line. No findings file, no dedup, no
   state. Works because `/double-check` is a skill Claude already knows how to
   run. Use this as the default; it's the cheap, debuggable version.
-- `cursor-review` — cross-agent clean-context review on Stop. Writes the diff
-  to `.claude/review/diff.patch`, then shells out to `agent -p` (Cursor CLI)
-  with a locked-down prompt. Review comes back on stdout, captured atomically
-  into `.claude/review/findings.md` (first line sentinel: `STATUS: CLEAN` or
-  `STATUS: ISSUES: N HIGH, M MEDIUM, K LOW`). The `agent` binary must be on
-  PATH; otherwise the hook silently no-ops. No auto-fix — Tom decides what
-  to act on.
+- `cursor-review` - cross-agent clean-context review on Stop. Writes the diff
+  to `.claude/cursor-review/diff.patch`, then shells out to `agent -p`
+  (Cursor CLI) with a locked-down prompt. Review comes back on stdout,
+  captured atomically into `.claude/cursor-review/findings.md` (first line
+  sentinel: `STATUS: CLEAN` or `STATUS: ISSUES: N HIGH, M MEDIUM, K LOW`).
+  The `agent` binary must be on PATH; otherwise the hook silently no-ops.
+  No auto-fix - Tom decides what to act on.
+- `codex-review` - cross-agent clean-context review on Stop, like
+  `cursor-review` but shelling out to `codex exec` (Codex CLI) instead of
+  `agent`. Two modes, picked from the working tree: a dirty tree reviews the
+  code changes with the session transcript as context, a clean tree reviews
+  the conversation itself. Writes its inputs and output under
+  `.claude/codex-review/` (`conversation.txt`, `changed_files.txt` in code
+  mode, `findings.md` with the same `STATUS:` sentinel). Requires a git repo;
+  silently no-ops if the `codex` binary isn't on PATH. No auto-fix.
 
-Both hooks share:
+All three hooks share:
 - `stop_hook_active` re-entry guard.
 - Silent no-op when their gate flag isn't set.
 
-`cursor-review` additionally requires a git repo with a non-empty `git diff
-HEAD`, maintains dedup state (diff hash), and writes a findings file.
+The review hooks (`cursor-review`, `codex-review`) additionally require a git
+repo, maintain dedup state (input hash), and write a findings file.
 `double-check` is intentionally stateless and git-agnostic — the skill
 reviews what happened in the session, not the diff, so it fires anywhere.
 
