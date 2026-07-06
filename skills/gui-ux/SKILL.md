@@ -1,21 +1,21 @@
 ---
-name: aesthetic
+name: gui-ux
 effort: xhigh
-disable-model-invocation: true
+disable-model-invocation: false
 argument-hint: <what to build>
-description: Generate distinctive, polished frontends — not AI slop
+description: Generate distinctive, polished frontends and fix ui issues
 ---
 
-# Aesthetic Frontend
+# GUI-UX Frontend
 
-Generate frontends that look genuinely designed, not AI-generated. Fight the convergence toward generic purple-gradient-on-white blandness.
+Generate frontends that look genuinely designed, not generated. Fight the convergence toward generic purple-gradient-on-white blandness.
 
 ## Rules
 
 Apply these to ALL frontend generation in this session:
 
 <frontend_aesthetics>
-You tend to converge toward generic, "on distribution" outputs. In frontend design, this creates what users call the "AI slop" aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight. Focus on:
+You tend to converge toward generic, "on distribution" outputs. In frontend design, this creates what users call the "slop" aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight. Focus on:
 
 Typography: Choose fonts that are beautiful, unique, and interesting. Avoid generic fonts like Arial and Inter; opt instead for distinctive choices that elevate the frontend's aesthetics.
 
