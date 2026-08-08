@@ -24,8 +24,9 @@ one-line summary, a clear problem).
 `pm/backlog/0-inbox/` exists. Raw drops live in state folders and `backlog.md`
 is GENERATED, never hand-edited. The script:
 
-1. Writes a standalone `bug-<slug>.md` into `0-inbox/` (the normal raw-drop
-   path) or `0-inbox-express/` (only with `--express`; see usage).
+1. Writes a standalone `bug-<slug>.md` into `0-inbox/` (the only raw-drop
+   path — the express lane was retired 2026-08-08; urgency is a
+   `**Priority:**` header line now, see `--priority` in usage).
 2. Runs the repo's `bin/backlog-index` to regenerate `backlog.md`. No bullet is
    inserted by hand. Index regen is best-effort - a failure warns but the bug
    file still lands and the run still succeeds.
@@ -47,8 +48,8 @@ A pure bash + awk script does the deterministic file plumbing.
 Pure bash + awk (no Python). It finds `pm/backlog/` by walking up from the
 current directory, then picks a mode by whether `0-inbox/` exists there:
 
-- **State-folder mode:** writes the bug file into `0-inbox/` (or `0-inbox-express/`
-  with `--express`) and runs `bin/backlog-index` to regenerate `backlog.md`. It
+- **State-folder mode:** writes the bug file into `0-inbox/` and runs
+  `bin/backlog-index` to regenerate `backlog.md`. It
   never edits `backlog.md` directly. Slug-collision scanning covers every state
   folder (`0-inbox` … `9-shipped`, the full maildir set) as both `bug-<slug>.md`
   files and `bug-<slug>/` folders, because slugs are immutable once assigned.
@@ -94,13 +95,13 @@ you can do better). Pass explicit flags and `--json` so you get a clean result:
 - `--status`: defaults to `open`. Use `monitoring` for "watching, no action yet".
 - `--slug`: rarely needed — the auto-slug is usually good. Override only if it
   comes out awkward.
-- `--express`: state-folder backlogs only. Drops the bug into `0-inbox-express/`
-  instead of `0-inbox/`. Express means "pre-blessed, just do it": after triage
-  it skips Tom's review and goes straight to the queue. So NEVER infer it, and
-  prefer the dedicated `log-fix` skill when Tom asks for it - that skill
-  exists precisely so express is an explicit trigger, not a remembered flag.
-  Every other bug - including ones you spot yourself - goes to `0-inbox/`
-  (omit the flag). In a legacy flat backlog `--express` is an error.
+- `--priority`: state-folder backlogs only. Stamps a `**Priority:** A1|A2|C`
+  line into the drop's header; triage copies it into `ticket.md`. Priority only
+  reorders the pipeline (A1 > A2 > B > C) — every ticket still stops at Tom's
+  gate, so there is no lane to skip. Pass it ONLY when Tom explicitly states an
+  urgency; NEVER infer it from tone. No flag = no line = B, the default (and
+  `--priority B` is an error for exactly that reason). In a legacy flat backlog
+  `--priority` is an error.
 
 **2. Tom from the terminal — the lazy fallback.**
 He brain-dumps one rough sentence. Let a cheap model clean it up with `--polish`:
@@ -131,6 +132,6 @@ just less tidy.
 - Never hand-edit a generated `backlog.md`. In a state-folder backlog the script
   regenerates it via `bin/backlog-index`; do not touch it yourself.
 - After writing, tell the user the file path so they can see exactly what landed.
-  In legacy mode also report the index bullet; in state-folder mode report which
-  folder it dropped into (`0-inbox/`, or `0-inbox-express/` if Tom asked for express).
+  In legacy mode also report the index bullet; in state-folder mode report that
+  it dropped into `0-inbox/` (and the stamped priority, if any).
 </rules>
