@@ -23,7 +23,7 @@ git rev-parse --git-dir &>/dev/null || exit 0
 # `-uall`: list each untracked file individually instead of collapsing dirs to `?? dir/`.
 # Filter excludes hook-owned state so enabling the hook doesn't itself flip mode to code.
 RAW_STATUS=$(git status --porcelain -uall 2>/dev/null || true)
-STATUS=$(printf '%s\n' "$RAW_STATUS" | grep -vE '^.. (\.claude/hooks/[^/]+\.enabled$|\.claude/codex-review/|\.claude/cursor-review/)' || true)
+STATUS=$(printf '%s\n' "$RAW_STATUS" | grep -vE '^.. (\.claude/hooks/[^/]+\.enabled$|\.claude/codex-review/)' || true)
 if [[ -n "$STATUS" ]]; then
   MODE="code"
 else
@@ -72,7 +72,7 @@ if [[ "$MODE" == "code" ]]; then
   while IFS= read -r -d '' f; do
     [[ -f "$f" ]] || continue
     case "$f" in
-      .claude/hooks/*.enabled|.claude/codex-review/*|.claude/cursor-review/*) continue ;;
+      .claude/hooks/*.enabled|.claude/codex-review/*) continue ;;
     esac
     h=$(shasum -a 1 "$f" 2>/dev/null | awk '{print $1}')
     UNTRACKED_HASHES+="${f}:${h}"$'\n'

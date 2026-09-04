@@ -9,7 +9,6 @@ statusline indicator. No slash commands, no agent turns to flip state.
 ~/.claude/hooks/
 ├── README.md                 # this file
 ├── double-check-stop.sh      # Stop hook: invokes /double-check skill
-├── cursor-review-stop.sh     # Stop hook: cross-agent review via `agent -p`
 ├── codex-review-stop.sh      # Stop hook: cross-agent review via `codex exec`
 └── harness/                  # all framework tooling — back this up as one unit
     ├── gate.sh               # hook_enabled() helper, sourced by every hook
@@ -24,7 +23,7 @@ Per-project state lives under `<project>/.claude/`:
 ```
 <project>/.claude/
 ├── hooks/<name>.enabled   # opt-in flag per hook (touch to enable, rm to disable)
-├── cursor-review/         # output of cursor-review (gitignored globally)
+├── codex-review/          # output of codex-review (gitignored globally)
 │   ├── findings.md        # reviewer output; first line: STATUS: CLEAN|ISSUES: …
 │   ├── diff.patch         # input snapshot the reviewer read
 │   └── last_hash          # dedup state (skips identical consecutive diffs)
@@ -44,8 +43,7 @@ Per-project state lives under `<project>/.claude/`:
   pause so you can read the confirmation.
 - **See what's enabled** — statusline shows a red `H:<names>` segment when any
   hook is enabled in the current project. Silent when none.
-- **Review findings** — `.claude/cursor-review/findings.md` or
-  `.claude/codex-review/findings.md`. First line is the sentinel; details
+- **Review findings** — `.claude/codex-review/findings.md`. First line is the sentinel; details
   follow. Open it however you want (`bat`, editor, popup).
 
 ## How a hook works
@@ -100,7 +98,6 @@ Example: a `lint-stop` hook that runs a linter and flags issues to Claude.
      {
        "hooks": [
          { "type": "command", "command": "bash ~/.claude/hooks/double-check-stop.sh" },
-         { "type": "command", "command": "bash ~/.claude/hooks/cursor-review-stop.sh" },
          { "type": "command", "command": "bash ~/.claude/hooks/lint-stop.sh" }
        ]
      }
@@ -158,27 +155,19 @@ all came from adding a hook without a checklist.
   before stopping, then summarize in one line. No findings file, no dedup, no
   state. Works because `/double-check` is a skill Claude already knows how to
   run. Use this as the default; it's the cheap, debuggable version.
-- `cursor-review` - cross-agent clean-context review on Stop. Writes the diff
-  to `.claude/cursor-review/diff.patch`, then shells out to `agent -p`
-  (Cursor CLI) with a locked-down prompt. Review comes back on stdout,
-  captured atomically into `.claude/cursor-review/findings.md` (first line
-  sentinel: `STATUS: CLEAN` or `STATUS: ISSUES: N HIGH, M MEDIUM, K LOW`).
-  The `agent` binary must be on PATH; otherwise the hook silently no-ops.
-  No auto-fix - Tom decides what to act on.
-- `codex-review` - cross-agent clean-context review on Stop, like
-  `cursor-review` but shelling out to `codex exec` (Codex CLI) instead of
-  `agent`. Two modes, picked from the working tree: a dirty tree reviews the
+- `codex-review` - cross-agent clean-context review on Stop, shelling out
+  to `codex exec` (Codex CLI). Two modes, picked from the working tree: a dirty tree reviews the
   code changes with the session transcript as context, a clean tree reviews
   the conversation itself. Writes its inputs and output under
   `.claude/codex-review/` (`conversation.txt`, `changed_files.txt` in code
   mode, `findings.md` with the same `STATUS:` sentinel). Requires a git repo;
   silently no-ops if the `codex` binary isn't on PATH. No auto-fix.
 
-All three hooks share:
+Both hooks share:
 - `stop_hook_active` re-entry guard.
 - Silent no-op when their gate flag isn't set.
 
-The review hooks (`cursor-review`, `codex-review`) additionally require a git
+The review hook (`codex-review`) additionally requires a git
 repo, maintain dedup state (input hash), and write a findings file.
 `double-check` is intentionally stateless and git-agnostic — the skill
 reviews what happened in the session, not the diff, so it fires anywhere.
